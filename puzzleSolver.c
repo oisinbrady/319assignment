@@ -210,7 +210,7 @@ int computeSolution(void) {
 
     printf("\n%g\n", z);
 
-    glp_write_lp(lp, NULL, "output_print");  // DEBUG: print the LP problem
+    glp_write_lp(lp, NULL, "/output_files/output_print");  // DEBUG: print the LP problem
 
     /* house-keeping */
     glp_delete_prob(lp);
