@@ -4,6 +4,7 @@
 #include <string.h> /* needed for memset() */
 #include <glpk.h> /* the linear programming toolkit */
 #include <stddef.h>
+#include <math.h>
 
 /* global variables -- YOU SHOULD NOT CHANGE THIS! */
 /* (You are allowed to add your own if you want.) */
@@ -23,6 +24,40 @@ int computeSolution(void); /* computes a solution if possible */
 /* This is the function that actually solves the problem. */
 /* It is currently basically empty and not functional. */
 /* Your own implementation needs to go in here. */
+
+int * determine_adjacent_nodes(int node);
+
+struct Edge{  // edge for the directed graph
+      int node_u;
+      int node_v;
+      int id[2]; // for debugging/printing, [node number][node number]
+};
+struct Edge construct_edge(int node_u, int node_v);
+// construct edges for two given nodes
+struct Edge construct_edge(int node_u, int node_v) {
+   struct Edge e;
+   e.node_u = node_u;
+   e.node_v = node_v;
+   e.id[0] = node_u;
+   e.id[1] = node_v;
+   return e;
+}
+
+int * determine_adjacent_nodes(int node){
+    // TODO
+    static int a[4];
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
+    for (int i = 0; i < 4; ++i)
+    {
+      printf("%i\n", a[i] );
+    }
+    return a;
+}
+
+
 int computeSolution(void) {
     glp_prob *lp;
     lp = glp_create_prob();
@@ -35,33 +70,53 @@ int computeSolution(void) {
     construct a super-source and super-sink
     if more than one source and sink
     */
+    const int total_nodes = numRows*numCols;
 
-    // find source & sink nodes
-    int startx = -1;
-    int starty = -1;
-    int i, j;
-    for ( i=0; i<numRows; i++ ) {
-      for ( j=0; j<numCols; j++ ) {
-        if ( input[i*numCols+j] != 0 ) {
-          // !TODO save source & sink locations
-          startx = i;
-          starty = j;
-          fprintf(stdout, "start[%d][%d] = [%d]\n", i, j, input[i*numCols+j]);
-        }
+    // map the input graph onto a 1d array for quick reference
+    // !READ is this necessary?
+    int input_1d[total_nodes];
+    int next_node = 0;
+    for ( int i=0; i<numRows; i++ ) {
+      for ( int j=0; j<numCols; j++ ) {
+          input_1d[next_node] = input[i*numCols+j];
+          next_node++;
       }
     }
+    // find source & sink nodes
+    int total_sources_and_sinks = 0;
+    for ( int i=0; i<total_nodes; i++) {
+        if (input_1d[i] != 0) {
+            total_sources_and_sinks++;
+        }
+    }
 
-    if (startx == -1 || starty == -1) {  // if there is no source or sink node
+    int const total_src_sink_pairs = total_sources_and_sinks / 2;
+    if (total_src_sink_pairs == 0) {  // if there is no source or sink node
       fprintf(stdout, "No source/sink node(s) found");
       return 0;
+    }
+    int source_sink_nodes[total_src_sink_pairs][3];  // node numbers of source-sink pairs
+
+    int pair_index = 0;
+    for ( int i=0; i < total_nodes; i++ ) {
+        if (input_1d[i] != 0) {
+          int color = input_1d[i];
+          for ( int j = i + 1; j < total_nodes; j++ ) {  // find a source/sink node
+              if (input_1d[j] == color) {  // find its pair
+                  source_sink_nodes[pair_index][0] = i;  // source node
+                  source_sink_nodes[pair_index][1] = j;  // sink node
+                  source_sink_nodes[pair_index][2] = color;  // the pair's color
+                  pair_index++;
+                  break;
+              }
+          }
+        }
     }
 
     /* !TODO
     Construct all possible edges based off input array.
     Traverse the array sequentially and find each nodes
     adjancent nodes before creating respective edges e(u,v).
-
-
 
     Adjacent (non-diagonal) nodes described as:
     top = input[ x     ][ y - 1 ]
@@ -70,75 +125,82 @@ int computeSolution(void) {
     bot = input[ x     ][ y + 1 ]
     */
 
-    struct Edge{  // edge for the directed graph
-      int node_u;
-      int node_v;
-      char id;
-    };
+
     /*
       find all possible edges for this type of graph and
       make a new variable for each
     */
     int total_edges = (2*numRows + 2*(numCols-2)) + (3*((numRows*numCols)-(2*numRows + 2*(numCols-2))));
-    printf("\nTotal edges in graph = %d\n", total_edges);
+    // printf("\nTotal edges in graph = %d\n", total_edges);
     Edge* edge_list = (Edge*)malloc(sizeof(Edge) * total_edges);
-    int tmp = 0;
-    int node_count = 0;
-    printf("\ni,j\n");
-    printf("\n n_rows - 2 = %d", numRows - 2);
-    // construct edges
-    for ( i=0; i<numRows; i++ ) {
-      for ( j=0; j<numCols; j++ ) {
-          // The edge's id will be later used to identify the edge when printing to ouput_print
-          printf("\n%d,%d", i, j);
-          node_count++;
-          if ( 0 < j < numCols - 1 && i == 0 ) {
-            // these peripheral nodes have 2 edges
-            printf("<- found top node1");
-            printf("\nadjacent nodes are:");
-            // edges adjancent to a corner node are:
-            if (j == 0) { //left corner node
-              printf("input[%d][%d]", i, j);
-            }
-            else if (j == numCols - 1){  //right corner
-              printf("input[%d][%d]", i, j);
-            }
-            else {  // all nodes inbetween
 
+    // construct edges these will be for making constraints to respective nodes (flow and capacity)
+    // !TODO don't construct mutliple edges going INTO a sink (not allowed)
+    int edge_counter = 0;
+    for ( int i=0; i<(numRows*numCols); i++ ) {
+        if ( input_1d[i]!=0 ) {  // if we have a source or sink node
+            // create edges from (only from!) source nodes
+            // printf("source/sink:%i\n", input_1d[i] );
+            int source = i;
+            int *p;
+            p = determine_adjacent_nodes(source);
+            for ( int n=0; n<4; n++){
+              printf("%i\n", *(p + i));
             }
-            printf("\n");
-            tmp++;
-          }
-          else if ( i < (numRows - 1) && i > 0 && j == 0 ) {
-            printf("<- found left node2");
-            tmp++;
-          }
-          else if ( i < (numRows - 1) && i > 0 && j == numCols - 1 ) {
-            printf("<- found right node3");
-            tmp++;
-          }
-          else if ( 0 < j < numCols - 1 && i == numRows - 1 ){
-            printf("<- found bottom node4");
-            tmp++;
-          }
 
-      }
+
+            // make all edges from source its to adjacent nodes
+            for ( int i=0; i<sizeof(p); i++) {
+              edge_list[edge_counter] = construct_edge(source, *(p + i));
+              edge_counter++;
+            }
+
+            // create edges to (only to!) sink nodes
+            // using source_sink_nodes array:
+            //    - find the sink node for this source
+            //    - create edges to sink FROM its adjacent nodes (construct_edge(x, sink))
+        }
+        else {  // for all other non-source/sink edges
+          // printf("%i\n", input_1d[i] );
+        }
+
+
+        // The edge's id will be later used to identify the edge when printing to ouput_print (debug)
+        // get the address of this node
+
+        // the x,y coordinates of node in the input graph
+        // !TODO: buggy
+        int x = i % numCols;
+        int y = i / numRows;
+        // printf("\n%d,%d\n", x, y);
     }
-    printf("\nperipheral nodes = %d\n", tmp);
+
+
+    // for ( int i=0; i < total_edges; i++ ){
+    //   printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
+    // }
+
+
+
+
+
+    return 0;
+
+
+
 
 
     // set all node capacity constraints
     glp_add_cols(lp, 24);
-    for (i = 1; i <= 24; i++){
+    for ( int i = 1; i <= 24; i++){
       glp_set_col_bnds(lp, i, GLP_DB, 0.0, 1.0);
     }
 
     // set all node flow constraints
-    int total_nodes = numRows*numCols;
     fprintf(stdout, "Total nodes = %d\n", total_nodes);
     glp_add_rows(lp, total_nodes);
 
-    for (i = 1; i <= total_nodes; i++){
+    for ( int i = 1; i <= total_nodes; i++){
       if ( i == 4 ){
         printf("\nFound source node");
 
@@ -203,7 +265,7 @@ int computeSolution(void) {
     Max(f(source))
     */
     double z = glp_get_obj_val(lp);
-    for ( i=1; i <= 24; i++){
+    for ( int i=1; i <= 24; i++){
       printf("\n%g" , glp_get_col_prim(lp, i));
     }
     printf("\n");
