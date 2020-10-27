@@ -134,7 +134,6 @@ int computeSolution(void) {
     */
     int total_edges = (2*numRows + 2*(numCols-2)) + (3*((numRows*numCols)-(2*numRows + 2*(numCols-2))));
     Edge* edge_list = (Edge*)malloc(sizeof(Edge) * 40);
-    printf("%d\n", total_edges );
     int edge_counter = 0;
 
 
@@ -143,17 +142,21 @@ int computeSolution(void) {
     for (int i = 0; i < total_nodes; i++) {
       color_array[i] = 0;
     }
-    bool source = true;
+    bool is_source = true;
 
+
+    // !TODO refactor if else block contents into a single function
+    // !TODO convert adjaceny nodes into an array of adjacent node structs i.e., node.top, node.left, etc
+    //    this is important for readability!
     for ( int i=0; i<(numRows*numCols); i++ ) {
         if ( input_1d[i]!=0 ) {  // if we have a source or sink node
             // mark the node as a source if it has not been seen before
             for ( int c = 0; c < total_nodes; c++ ) {
               if ( color_array[c] == input_1d[i] ){
-                source = false;
+                is_source = false;
               }
             }
-            if (source) {
+            if (is_source) {
                 color_array[ca_index] = input_1d[i];
                 ca_index++;
                 // make the edges for the source/sink node
@@ -163,12 +166,6 @@ int computeSolution(void) {
                 // it will remain -1 - indicating that there is no edge in this case
                 int an[4] = {-1,-1,-1,-1};
                 int *adjacent_nodes = determine_adjacent_nodes(source, an);
-
-                // for ( int n=0; n<4; n++){
-                //   printf("%i\n", adjacent_nodes[n]);
-                // }
-                // printf("\n");
-
                 // make all edges from source to its adjacent nodes
                 const int MAX_ADJACENT = 4;
                 for ( int i=0; i<MAX_ADJACENT; i++) {
@@ -199,44 +196,25 @@ int computeSolution(void) {
             }
         }
         else {  // for all other non-source/sink edges
-
-            // BUG: still producing edges into source node and not all adjacent nodes made
-            // N.B: check if there are edges going from sink to adjacent node
             int an[4] = {-1,-1,-1,-1};
             int *adjacent_nodes = determine_adjacent_nodes(i, an);
-            for (int an = 0; an < 4; an++) {
-              for (int j = 0; j < total_src_sink_pairs; j++) {
-                if (source_sink_nodes[j][3] != adjacent_nodes[an]) {
-                    if (adjacent_nodes[an] != -1) {
-                        edge_list[edge_counter] = construct_edge(i, adjacent_nodes[an]);
-                        edge_counter++;
-                    }
+            for ( int ad_node = 0; ad_node < 4; ad_node++ ) {
+                // if the adjacent node is not a source/sink
+                if ( adjacent_nodes[ad_node] != -1 ) {
+                  if ( input_1d[adjacent_nodes[ad_node]] == 0 ) {
+                    edge_list[edge_counter] = construct_edge(i, adjacent_nodes[ad_node]);
+                    edge_counter++;
+                  }
                 }
-              }
             }
-
-            printf("Adjacent nodes to node offset, %i\n", i);
-            for ( int n=0; n<4; n++){
-                  printf("%i\n", adjacent_nodes[n]);
-                }
-            printf("\n");
-
-            // const int MAX_ADJACENT = 4;
-
-            // for ( int i=0; i<MAX_ADJACENT; i++) {
-            //   if (adjacent_nodes[i] != -1) {
-            //     edge_list[edge_counter] = construct_edge(i, adjacent_nodes[i]);
-            //     edge_counter++;
-            //   }
-            // }
         }
     }
 
 
-    for ( int i=0; i < total_edges; i++ ){
-      printf("\n%i:", i);
-      printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
-    }
+    // for ( int i=0; i < total_edges; i++ ){
+    //   printf("\n%i:", i);
+    //   printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
+    // }
 
 
 
