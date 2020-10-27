@@ -25,7 +25,7 @@ int computeSolution(void); /* computes a solution if possible */
 /* It is currently basically empty and not functional. */
 /* Your own implementation needs to go in here. */
 
-int * determine_adjacent_nodes(int node);
+int * determine_adjacent_nodes(int node, int *array);
 
 struct Edge{  // edge for the directed graph
       int node_u;
@@ -43,18 +43,33 @@ struct Edge construct_edge(int node_u, int node_v) {
    return e;
 }
 
-int * determine_adjacent_nodes(int node){
-    // TODO
-    static int a[4];
-    a[0] = 1;
-    a[1] = 2;
-    a[2] = 3;
-    a[3] = 4;
-    for (int i = 0; i < 4; ++i)
-    {
-      printf("%i\n", a[i] );
+int * determine_adjacent_nodes(int node, int *array){
+    // find the nodes x and y coordinates
+    // printf("\nNode offset:%i", node);
+    int x = node % numCols;
+    int y = node / numCols;
+    // printf("(%i,%i)\n",x,y );
+
+    if ( y > 0 ) {
+      int offset = int(y-1)*int(numCols)+int(x);
+      array[0] = offset;  // top node offset for the 1d array
     }
-    return a;
+    if ( x > 0 ) {
+        // left
+        int offset = int(y)*int(numCols)+int(x-1);
+        array[1] = offset;
+    }
+    if ( x < numCols - 1 ) {
+        // right
+        int offset = int(y)*int(numCols)+int(x+1);
+        array[2] = offset;
+    }
+    if ( y < numRows - 1 ) {
+        // bottom
+        int offset = int(y+1)*int(numCols)+int(x);
+        array[3] = offset;
+    }
+    return array;
 }
 
 
@@ -113,72 +128,115 @@ int computeSolution(void) {
         }
     }
 
-    /* !TODO
-    Construct all possible edges based off input array.
-    Traverse the array sequentially and find each nodes
-    adjancent nodes before creating respective edges e(u,v).
-
-    Adjacent (non-diagonal) nodes described as:
-    top = input[ x     ][ y - 1 ]
-    lft = input[ x - 1 ][ y     ]
-    rgt = input[ x + 1 ][ y     ]
-    bot = input[ x     ][ y + 1 ]
-    */
-
-
     /*
       find all possible edges for this type of graph and
       make a new variable for each
     */
     int total_edges = (2*numRows + 2*(numCols-2)) + (3*((numRows*numCols)-(2*numRows + 2*(numCols-2))));
-    // printf("\nTotal edges in graph = %d\n", total_edges);
-    Edge* edge_list = (Edge*)malloc(sizeof(Edge) * total_edges);
-
-    // construct edges these will be for making constraints to respective nodes (flow and capacity)
-    // !TODO don't construct mutliple edges going INTO a sink (not allowed)
+    Edge* edge_list = (Edge*)malloc(sizeof(Edge) * 40);
+    printf("%d\n", total_edges );
     int edge_counter = 0;
+
+
+    int ca_index = 0;
+    int color_array[total_nodes];  // store the encountered colors
+    for (int i = 0; i < total_nodes; i++) {
+      color_array[i] = 0;
+    }
+    bool source = true;
+
     for ( int i=0; i<(numRows*numCols); i++ ) {
         if ( input_1d[i]!=0 ) {  // if we have a source or sink node
-            // create edges from (only from!) source nodes
-            // printf("source/sink:%i\n", input_1d[i] );
-            int source = i;
-            int *p;
-            p = determine_adjacent_nodes(source);
-            for ( int n=0; n<4; n++){
-              printf("%i\n", *(p + i));
+            // mark the node as a source if it has not been seen before
+            for ( int c = 0; c < total_nodes; c++ ) {
+              if ( color_array[c] == input_1d[i] ){
+                source = false;
+              }
             }
+            if (source) {
+                color_array[ca_index] = input_1d[i];
+                ca_index++;
+                // make the edges for the source/sink node
+                int source = i;
+                // adjacent node array of the top, left, right, and bottom nodes
+                // if the node does not have a certain directionally adjacent node
+                // it will remain -1 - indicating that there is no edge in this case
+                int an[4] = {-1,-1,-1,-1};
+                int *adjacent_nodes = determine_adjacent_nodes(source, an);
 
+                // for ( int n=0; n<4; n++){
+                //   printf("%i\n", adjacent_nodes[n]);
+                // }
+                // printf("\n");
 
-            // make all edges from source its to adjacent nodes
-            for ( int i=0; i<sizeof(p); i++) {
-              edge_list[edge_counter] = construct_edge(source, *(p + i));
-              edge_counter++;
+                // make all edges from source to its adjacent nodes
+                const int MAX_ADJACENT = 4;
+                for ( int i=0; i<MAX_ADJACENT; i++) {
+                  if (adjacent_nodes[i] != -1){
+                    edge_list[edge_counter] = construct_edge(source, adjacent_nodes[i]);
+                    edge_counter++;
+                  }
+                }
             }
+            else {  //otherwise construct edges going into the sink
+                int sink = i;
+                int an[4] = {-1,-1,-1,-1};
+                int *adjacent_nodes = determine_adjacent_nodes(sink, an);
 
-            // create edges to (only to!) sink nodes
-            // using source_sink_nodes array:
-            //    - find the sink node for this source
-            //    - create edges to sink FROM its adjacent nodes (construct_edge(x, sink))
+                // for ( int n=0; n<4; n++){
+                //   printf("%i\n", adjacent_nodes[n]);
+                // }
+                // printf("\n");
+
+                // make all edges adjacent to the sink going into the sink
+                const int MAX_ADJACENT = 4;
+                for ( int i=0; i<MAX_ADJACENT; i++) {
+                  if (adjacent_nodes[i] != -1){
+                    edge_list[edge_counter] = construct_edge(adjacent_nodes[i], sink);
+                    edge_counter++;
+                  }
+                }
+            }
         }
         else {  // for all other non-source/sink edges
-          // printf("%i\n", input_1d[i] );
+
+            // BUG: still producing edges into source node and not all adjacent nodes made
+            // N.B: check if there are edges going from sink to adjacent node
+            int an[4] = {-1,-1,-1,-1};
+            int *adjacent_nodes = determine_adjacent_nodes(i, an);
+            for (int an = 0; an < 4; an++) {
+              for (int j = 0; j < total_src_sink_pairs; j++) {
+                if (source_sink_nodes[j][3] != adjacent_nodes[an]) {
+                    if (adjacent_nodes[an] != -1) {
+                        edge_list[edge_counter] = construct_edge(i, adjacent_nodes[an]);
+                        edge_counter++;
+                    }
+                }
+              }
+            }
+
+            printf("Adjacent nodes to node offset, %i\n", i);
+            for ( int n=0; n<4; n++){
+                  printf("%i\n", adjacent_nodes[n]);
+                }
+            printf("\n");
+
+            // const int MAX_ADJACENT = 4;
+
+            // for ( int i=0; i<MAX_ADJACENT; i++) {
+            //   if (adjacent_nodes[i] != -1) {
+            //     edge_list[edge_counter] = construct_edge(i, adjacent_nodes[i]);
+            //     edge_counter++;
+            //   }
+            // }
         }
-
-
-        // The edge's id will be later used to identify the edge when printing to ouput_print (debug)
-        // get the address of this node
-
-        // the x,y coordinates of node in the input graph
-        // !TODO: buggy
-        int x = i % numCols;
-        int y = i / numRows;
-        // printf("\n%d,%d\n", x, y);
     }
 
 
-    // for ( int i=0; i < total_edges; i++ ){
-    //   printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
-    // }
+    for ( int i=0; i < total_edges; i++ ){
+      printf("\n%i:", i);
+      printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
+    }
 
 
 
