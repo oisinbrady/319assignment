@@ -27,22 +27,6 @@ int computeSolution(void); /* computes a solution if possible */
 
 int * determine_adjacent_nodes(int node, int *array);
 
-struct Edge{  // edge for the directed graph
-      int node_u;
-      int node_v;
-      int id[2]; // for debugging/printing, [node number][node number]
-};
-struct Edge construct_edge(int node_u, int node_v);
-// construct edges for two given nodes
-struct Edge construct_edge(int node_u, int node_v) {
-   struct Edge e;
-   e.node_u = node_u;
-   e.node_v = node_v;
-   e.id[0] = node_u;
-   e.id[1] = node_v;
-   return e;
-}
-
 int * determine_adjacent_nodes(int node, int *array){
     // find the nodes x and y coordinates
     // printf("\nNode offset:%i", node);
@@ -86,6 +70,13 @@ int computeSolution(void) {
     if more than one source and sink
     */
     const int total_nodes = numRows*numCols;
+
+    int adjaceny_matrix[total_nodes][total_nodes];
+    for (int i = 0; i < total_nodes; i++) {
+      for (int j = 0; j < total_nodes; j++) {
+        adjaceny_matrix[i][j] = 0;
+      }
+    }
 
     // map the input graph onto a 1d array for quick reference
     // !READ is this necessary?
@@ -132,10 +123,9 @@ int computeSolution(void) {
       find all possible edges for this type of graph and
       make a new variable for each
     */
-    int total_edges = (2*numRows + 2*(numCols-2)) + (3*((numRows*numCols)-(2*numRows + 2*(numCols-2))));
-    Edge* edge_list = (Edge*)malloc(sizeof(Edge) * 40);
-    int edge_counter = 0;
 
+    // !TODO recalculate total edges! in01.txt is producing 43 edges
+    int edge_counter = 0;
 
     int ca_index = 0;
     int color_array[total_nodes];  // store the encountered colors
@@ -167,11 +157,15 @@ int computeSolution(void) {
                 int an[4] = {-1,-1,-1,-1};
                 int *adjacent_nodes = determine_adjacent_nodes(source, an);
                 // make all edges from source to its adjacent nodes
+                printf("source=%i\n", source);
+
                 const int MAX_ADJACENT = 4;
                 for ( int i=0; i<MAX_ADJACENT; i++) {
+                  // !TODO implement into an adjaceny matrix instead
                   if (adjacent_nodes[i] != -1){
-                    edge_list[edge_counter] = construct_edge(source, adjacent_nodes[i]);
-                    edge_counter++;
+                    printf("i=%i\n", adjacent_nodes[i]);
+                    int adj_i = adjacent_nodes[i];
+                    adjaceny_matrix[source][adj_i] = 1;
                   }
                 }
             }
@@ -179,18 +173,12 @@ int computeSolution(void) {
                 int sink = i;
                 int an[4] = {-1,-1,-1,-1};
                 int *adjacent_nodes = determine_adjacent_nodes(sink, an);
-
-                // for ( int n=0; n<4; n++){
-                //   printf("%i\n", adjacent_nodes[n]);
-                // }
-                // printf("\n");
-
                 // make all edges adjacent to the sink going into the sink
                 const int MAX_ADJACENT = 4;
                 for ( int i=0; i<MAX_ADJACENT; i++) {
                   if (adjacent_nodes[i] != -1){
-                    edge_list[edge_counter] = construct_edge(adjacent_nodes[i], sink);
-                    edge_counter++;
+                    int adj_i = adjacent_nodes[i];
+                    adjaceny_matrix[adj_i][sink] = 1;
                   }
                 }
             }
@@ -199,34 +187,36 @@ int computeSolution(void) {
             int an[4] = {-1,-1,-1,-1};
             int *adjacent_nodes = determine_adjacent_nodes(i, an);
             for ( int ad_node = 0; ad_node < 4; ad_node++ ) {
-                // if the adjacent node is not a source/sink
+                // if the node has an adjacent node in this direction
                 if ( adjacent_nodes[ad_node] != -1 ) {
+                  // if the adjacent node is not a source/sink
                   if ( input_1d[adjacent_nodes[ad_node]] == 0 ) {
-                    edge_list[edge_counter] = construct_edge(i, adjacent_nodes[ad_node]);
-                    edge_counter++;
+                    int adj_i = adjacent_nodes[ad_node];
+                    adjaceny_matrix[i][adj_i] = 1;
+                    adjaceny_matrix[adj_i][i] = 1;
                   }
                 }
             }
         }
     }
 
+    int edges = 0;
+    // Traverse the Adj[][]
+    for (int i = 0; i < total_nodes; i++) {
+        for (int j = 0; j < total_nodes; j++) {
 
-    // for ( int i=0; i < total_edges; i++ ){
-    //   printf("\n%i:", i);
-    //   printf("\nid:[%i,%i]: %i,%i\n", edge_list[i].id[0], edge_list[i].id[1], edge_list[i].node_u, edge_list[i].node_v );
-    // }
-
-
-
-
-
-    return 0;
-
-
-
-
+            // Print the value at Adj[i][j]
+            printf("%d ", adjaceny_matrix[i][j]);
+            if ( adjaceny_matrix[i][j] == 1 ){
+              edges++;
+            }
+        }
+        printf("\n");
+    }
 
     // set all node capacity constraints
+    // TODO this should set all edge bounds (0<=x<=1)
+    printf("number of edges = %i\n", edges/2);
     glp_add_cols(lp, 24);
     for ( int i = 1; i <= 24; i++){
       glp_set_col_bnds(lp, i, GLP_DB, 0.0, 1.0);
@@ -280,9 +270,9 @@ int computeSolution(void) {
     ---------------------------------------------------------------------------------
     ia[1] = 1,         | ja[1] = 4,                     | ar[1] = c
     */
-    ia[1] = 1, ja[2] = 4, ar[1] =  -1.0; /* a[1,1] =  -1 */
-    ia[2] = 1, ja[1] = 13, ar[2] =  1.0; /* a[1,2] =  1 */
-    // ia[3] = 1, ja[3] = 3, ar[3] =  1.0; /* a[1,3] =  1 */
+    ia[1] = 1, ja[2] = 4, ar[1] =  1.0; /* a[1,1] =  -1 */
+    ia[2] = 1, ja[1] = 13, ar[2] =  -1.0; /* a[1,2] =  1 */
+    // ia[3] = 1, ja[3] = 7, ar[1] =  1.0; /* a[1,3] =  1 */
     // ia[4] = 2, ja[4] = 1, ar[4] =  10.0; /* a[2,1] = 10 */
     // ia[5] = 3, ja[5] = 1, ar[5] =  2.0; /* a[3,1] =  2 */
     // ia[6] = 2, ja[6] = 2, ar[6] =  1.0; /* a[2,2] =  4 */
@@ -308,11 +298,11 @@ int computeSolution(void) {
 
     printf("\n%g\n", z);
 
-    glp_write_lp(lp, NULL, "/output_files/output_print");  // DEBUG: print the LP problem
+    glp_write_lp(lp, NULL, "output.txt");  // DEBUG: print the LP problem
 
     /* house-keeping */
     glp_delete_prob(lp);
-    free(edge_list);
+    // free(edge_list);
   	return 0; /* this is not true for every puzzle, of course */
 }
 
