@@ -25,6 +25,26 @@ int computeSolution(void); /* computes a solution if possible */
 /* It is currently basically empty and not functional. */
 /* Your own implementation needs to go in here. */
 
+int count_edges(int t_nodes, int *adjaceny_matrix);
+
+int count_edges(int t_nodes, int *adjaceny_matrix){
+  // Traverse the adjaceny matrix and count the number of edges
+  int edges = 0;
+  for (int i = 0; i < t_nodes; i++)
+  {
+    for (int j = 0; j < t_nodes; j++)
+    {
+      printf("%d ", *((adjaceny_matrix+i*t_nodes) + j)); //DEBUG
+      if (*((adjaceny_matrix+i*t_nodes) + j) == 1)
+      {
+        edges++;
+      }
+    }
+    printf("\n");
+  }
+  return edges;
+}
+
 int *determine_adjacent_nodes(int node, int *array);
 
 int *determine_adjacent_nodes(int node, int *array)
@@ -208,23 +228,12 @@ int computeSolution(void)
     }
   }
 
-  int edges = 0;
-  // Traverse the adjaceny matrix and count the number of edges
-  for (int i = 0; i < total_nodes; i++)
-  {
-    for (int j = 0; j < total_nodes; j++)
-    {
-      printf("%d ", adjaceny_matrix[i][j]); //DEBUG
-      if (adjaceny_matrix[i][j] == 1)
-      {
-        edges++;
-      }
-    }
-    printf("\n");
-  }
+  int edges = count_edges(total_nodes, (int *)adjaceny_matrix);
+
 
   // set all node capacity constraints
   // TODO this should set all edge bounds (0<=x<=1)
+
   glp_add_cols(lp, edges);
   for (int i = 0, ad_edges = 0; i < total_nodes; i++)
   {
