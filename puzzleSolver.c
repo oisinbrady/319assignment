@@ -141,7 +141,6 @@ int computeSolution(void)
   bool is_source = true;
 
   // !TODO refactor if else block contents into a single function
-  // !TODO convert adjaceny nodes into an array of adjacent node structs i.e., node.top, node.left, etc
   //    this is important for readability!
 
   // make the adjaceny matrix
@@ -176,9 +175,9 @@ int computeSolution(void)
         const int MAX_ADJACENT = 4;
         for (int i = 0; i < MAX_ADJACENT; i++)
         {
-          // !TODO implement into an adjaceny matrix instead
           if (adjacent_nodes[i] != -1)
           {
+            // make all edges for the source
             adjaceny_matrix[source][adjacent_nodes[i]] = 1;
           }
         }
@@ -203,6 +202,7 @@ int computeSolution(void)
         {
           if (adjacent_nodes[i] != -1)
           {
+            // make all edges for the sink
             adjaceny_matrix[adjacent_nodes[i]][sink] = 1;
           }
         }
@@ -220,6 +220,7 @@ int computeSolution(void)
           // if the adjacent node is not a source/sink
           if (input_1d[adjacent_nodes[ad_node]] == 0)
           {
+            // make edges for all e in E not {s,t}
             adjaceny_matrix[i][adjacent_nodes[ad_node]] = 1;
             adjaceny_matrix[adjacent_nodes[ad_node]][i] = 1; // a path in the converse direction is also possible
           }
@@ -232,8 +233,6 @@ int computeSolution(void)
 
 
   // set all node capacity constraints
-  // TODO this should set all edge bounds (0<=x<=1)
-
   glp_add_cols(lp, edges);
   for (int i = 0, ad_edges = 0; i < total_nodes; i++)
   {
@@ -248,6 +247,9 @@ int computeSolution(void)
   }
 
   // !TODO Rewrite this to maximise edges leaving ALL sources + sink value
+  // !TODO Max flow needs to allow for multiple source/sink nodes
+  // !TODO I.e., rework the objective function, and change the contraints to
+  // !TODO    add: S_i(outbound edge's flow) - T_i(inbound edge's flow) = 0
   /* set objective function to maximise edges coming out of source */
   glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
   for (int i = 0, ad_edges = 0; i < total_nodes; i++)
@@ -270,8 +272,6 @@ int computeSolution(void)
     }
   }
 
-  // TODO Need to find the sink node and make source = sink
-  // This is currently hardcoded to work with input_files/test.txt
   int index[total_nodes];    /* indices to define constraint coefficients */
   double value[total_nodes]; /* values to define constraint coefficients */
   int connected;             /* number of edges connected to specific node  */
@@ -327,7 +327,7 @@ int computeSolution(void)
         for (j = 0; j < total_nodes; j++)
         {
           if (adjaceny_matrix[i][j] > 0.0)
-          {          // TODO EDGES ARE NOT GOING INTO A SINK
+          {
             edges++; /* compute the number of the edge */
             if (i == node)
             {              /* edge is outgoing edge */
@@ -348,6 +348,8 @@ int computeSolution(void)
       glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
   }
+
+
   glp_term_out(0);
   glp_simplex(lp, NULL); // solve LP via simplex algorithm
 
