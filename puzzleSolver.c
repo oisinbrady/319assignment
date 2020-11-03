@@ -7,7 +7,8 @@
 #include <math.h>
 
 /* global variables -- YOU SHOULD NOT CHANGE THIS! */
-/* (You are allowed to add your own if you want.) */
+/* (You are allowed to add
+ * your own if you want.) */
 int numRows, numCols; /* number of rows and columns of the puzzle */
 int *input;           /* array holding the input */
 int *solution;        /* array holding the solution */
@@ -24,6 +25,12 @@ int computeSolution(void); /* computes a solution if possible */
 /* This is the function that actually solves the problem. */
 /* It is currently basically empty and not functional. */
 /* Your own implementation needs to go in here. */
+
+bool different_color(int node_u, int node_w);
+
+bool different_color(int node_u, int node_w){
+  return (node_u != node_w && node_u != 0 && node_w != 0);
+}
 
 int count_edges(int t_nodes, int *adjaceny_matrix);
 
@@ -81,6 +88,13 @@ int *determine_adjacent_nodes(int node, int *array)
   return array;
 }
 
+struct Color {
+  // the respective source and sink locations of each color
+  int color;
+  int source_location;
+  int sink_location;
+};
+
 int computeSolution(void)
 {
   const int total_nodes = numRows * numCols;
@@ -127,48 +141,48 @@ int computeSolution(void)
   int source_sink_pair[total_sources_and_sinks/2][2];
   int pair_count = 0;
 
-  /*
-    find all possible edges for this type of graph and
-    make a new variable for each
-  */
-
-  int ca_index = 0;
-  int color_array[total_nodes]; // store the encountered colors
+  const int PAIRS = total_sources_and_sinks/2;
+  struct Color st_pairs[PAIRS];
   for (int i = 0; i < total_nodes; i++)
   {
-    color_array[i] = 0;
+    for (int j = i+1; j < total_nodes; j++)
+    {
+      // if we have seen this color before
+      if (input_1d[i] == input_1d[j] && input_1d[i] != 0){
+        struct Color c;
+        c.color = input_1d[i];
+        c.source_location = i;
+        c.sink_location = j;
+      }
+    }
   }
-  bool is_source = true;
-
-  // !TODO refactor if else block contents into a single function
-  //    this is important for readability!
 
   // make the adjaceny matrix
+  // !TODO rewrite
   for (int i = 0; i < (numRows * numCols); i++)
   {
     if (input_1d[i] != 0)
     { // if we have a source or sink node
       // mark the node as a source if it has not been seen before
-      int source_location;
-      int source_color;
-      for (int c = 0; c < total_nodes; c++)
+      // determine if node is source or sink
+      bool is_source = false;
+      for (int p = 0; p < PAIRS; p++)
       {
-        source_color = input_1d[i];
-        source_location = i;
-        if (color_array[c] == source_color)
-        {                    // store this color if we havent seen it before
-          is_source = false; // so we'll call it the sink if it's been seen before
+        if (st_pairs[p].color == input_1d[i])
+        {
+          if (st_pairs[p].source_location == i )
+          {
+            is_source = true;
+          }
         }
       }
       if (is_source)
       {
-        color_array[ca_index] = input_1d[i];
-        ca_index++;
         // make the edges for the source/sink node
-        int source = i;
         // adjacent node array of the top, left, right, and bottom nodes
         // if the node does not have a certain directionally adjacent node
         // it will remain -1 - indicating that there is no edge in this case
+        int source = i;
         int an[4] = {-1, -1, -1, -1};
         int *adjacent_nodes = determine_adjacent_nodes(source, an);
         // make all edges from source to its adjacent nodes
@@ -179,15 +193,6 @@ int computeSolution(void)
           {
             // make all edges for the source
             adjaceny_matrix[source][adjacent_nodes[i]] = 1;
-          }
-        }
-        source_sink_pair[pair_count][0] = i;
-        // find the source's sink
-        for (int i = 0; i < total_nodes ; i++)
-        {
-          if (input_1d[i] == source_color && i != source_location){
-            source_sink_pair[pair_count][1] = i;
-            pair_count++;
           }
         }
       }
@@ -231,7 +236,6 @@ int computeSolution(void)
 
   int edges = count_edges(total_nodes, (int *)adjaceny_matrix);
 
-
   // set all node capacity constraints
   glp_add_cols(lp, edges);
   for (int i = 0, ad_edges = 0; i < total_nodes; i++)
@@ -246,23 +250,43 @@ int computeSolution(void)
     }
   }
 
-  // !TODO Rewrite this to maximise edges leaving ALL sources + sink value
-  // !TODO Max flow needs to allow for multiple source/sink nodes
-  // !TODO I.e., rework the objective function, and change the contraints to
-  // !TODO    add: S_i(outbound edge's flow) - T_i(inbound edge's flow) = 0
+  // !TODO Introduce a super node and super sink
+  // super source = sum of all source involved edges
+  // super sink = sum of all sink involved edges
+  // obj func: max (super source - super sink)
+
+  // loop through adjacency matrix:
+  //    if (u or v in e(u,v) in {s,t}
+  //      AND (u_color == v_color where u and v in {s,t}):
+  //        add this edge to the obj function
+
+  // N.B: I don't believe the sink currently has a constraint, therefore it can "catch flow"
+  //      Does this have implications for super sink imlementation? dont think so
+
+  // SHOULD I ADD NODES INBOUND TO SINK TO OBJ FUNCTION?!
   /* set objective function to maximise edges coming out of source */
   glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
   for (int i = 0, ad_edges = 0; i < total_nodes; i++)
   {
     for (int j = 0; j < total_nodes; j++)
     {
-      if (adjaceny_matrix[i][j] > 0.0)
+      // if we come across any edge in the graph
+      // !TODO also if edge e(s,t) where s_color != t_color
+
+      if (adjaceny_matrix[i][j] > 0.0 )
       {
         ad_edges++; /* compute the number of the edge */
-        if (input_1d[i] != 0)
-        { // if node is a source node
-          // printf("node number=%i\n", i);  // these should all be the same
-          glp_set_obj_coef(lp, ad_edges, 1.0);
+        if (input_1d[i] > 0 || input_1d[j] > 0)  // if edge has source or sink
+        {
+          // printf("here\n");
+          // printf("i=%i\n", i);
+          // printf("j=%i\n", j);
+          // printf("input_1d[i]%i\n", input_1d[i]);
+          // printf("input_1d[j]%i\n", input_1d[j]);
+          // if (input_1d[i] == input_1d[j] || input_1d[i] == 0 || input_1d[j] ==0){
+            printf("Adding edge(%i,%i) to obj function\n", i, j);
+            glp_set_obj_coef(lp, ad_edges, 1.0);  // add the edge to the max obj f
+          // }
         }
         else
         {
@@ -293,7 +317,6 @@ int computeSolution(void)
     }
     if (source)  // i.e., if we have the source node
     {
-      printf("here\n");
       glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); // set RHS
       for (i = 0, edges = 0, connected = 0; i < total_nodes; i++)
       {
@@ -377,6 +400,8 @@ int computeSolution(void)
   glp_write_lp(lp, NULL, "output.txt"); // DEBUG: print the LP problem
   /* house-keeping */
   glp_delete_prob(lp);
+
+  // TODO if maximal flow == |source nodes| return 1
   return 0; /* this is not true for every puzzle, of course */
 }
 
