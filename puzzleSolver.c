@@ -162,10 +162,8 @@ int computeSolution(void)
   lp = glp_create_prob();
   glp_set_prob_name(lp, "MEDP"); // maximum edge disjoint paths - all or nothing
 
-
   // TODO convert to malloced 2d array so i can pass easily into functions
   int *adjaceny_matrix = (int *)malloc(NODES * NODES * sizeof(int));
-
   for (int i = 0; i < NODES; i++)
   {
     for (int j = 0; j < NODES; j++)
@@ -192,11 +190,6 @@ int computeSolution(void)
     {
       total_sources_and_sinks++;
     }
-  }
-  if (total_sources_and_sinks == 0)
-  { // if there is no source or sink node
-    fprintf(stdout, "No source/sink node(s) found");
-    return 0;
   }
 
   /* find source-sink pair nodes */
@@ -351,7 +344,7 @@ int computeSolution(void)
         }
         else
         {
-          glp_set_obj_coef(lp, ad_edges, 0.0); /* other edges not involved */
+          //glp_set_obj_coef(lp, ad_edges, 0.0); /* other edges not involved */
         }
       }
     }
@@ -363,12 +356,14 @@ int computeSolution(void)
   int i;
   int j;
   /* define constraints */
+  /* for each non-st node, x: sum of e(x, v) - sum of e(u, x) = 0 */
+  /* for each source (and its sink), s_i: sum of e(s_i, v) - sum of e(u, t_i) = 0 */
   glp_add_rows(lp, NODES); /* We have one constraint per node */
   for (int node = 0; node < NODES; node++)
   {
+    // find out if the node is a source node
     bool source = false;
     struct Color st_pair;
-    /* constraint is sum of incoming - sum of outgoing = 0 */
     for (int p = 0; p < PAIRS; p++)
     {
       if (input_1d[node] == st_pairs[p].color)
@@ -385,9 +380,11 @@ int computeSolution(void)
     int source_edges[4];
     int se_index = 0;
     /* SOURCE NODE CONSTRAINTS */
-    if (source)  // i.e., if we have the source node
+    if (source)  // if we have the source node
     {
       glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); // set RHS
+      // traverse through the adjaceny matrix and find each source node edge
+      // then set its constraint
       for (i = 0, edges = 0, connected = 0; i < NODES; i++)
       {
         for (j = 0; j < NODES; j++)
@@ -395,7 +392,13 @@ int computeSolution(void)
           if (*(adjaceny_matrix + i*NODES + j) > 0.0)
           {
             edges++; /* compute the number of the edge */
-            source_edges[se_index] = edges;
+
+            // !READ BUG area: if the next encountered sink/source node is
+            // not the sink node of this current source then the next
+            // else if block will not have these edges
+            // ... that's why I have weird behavour when s/ts of different colors
+            // are next to each other ...
+            source_edges[se_index] = edges;  // will have a buffer overflow if we use se_index++
             if (i == node)
             {              /* edge is outgoing edge */
               connected++; /* count number of connected edges */
@@ -471,6 +474,7 @@ int computeSolution(void)
         // if the node does not connect to a sink node
         if (input_1d[an[adj_node]] == st_pair.sink_location)
         {
+          // !READ is this necessary? dont think so
             continue;
         }
       }
