@@ -41,7 +41,7 @@ int count_edges(int t_nodes, int *adjaceny_matrix){
         edges++;
       }
     }
-    printf("\n");
+    // printf("\n");
   }
   return edges;
 }
@@ -105,6 +105,10 @@ struct Color {
   int color;
   int source_location;
   int sink_location;
+  /* edge numbers of adjacent edges */
+  int source_edges[4];
+
+  bool dummy;
 };
 
 void build_solution(int *solution, int *adjaceny_matrix, glp_prob *lp);
@@ -153,6 +157,65 @@ void find_st_pairs(Color* st_pairs, int PAIRS, int NODES, int *input_1d){
       }
     }
   }
+  // initialise all source's outbound edges
+  // TODO for some reason this does not work if we are inside the loop above
+
+  for (int p = 0; p < PAIRS; p++)
+  {
+    for (int i = 0; i < 4; i++)
+    {
+      st_pairs[p].source_edges[i] = -1;
+    }
+  }
+}
+
+struct Color find_pair(int node_index, Color* pairs_list, int PAIRS);
+struct Color find_pair(int node_index, Color* pairs_list, int PAIRS){
+  for (int p = 0; p < PAIRS; p++){
+    if (node_index == pairs_list[p].source_location || node_index == pairs_list[p].sink_location){
+      printf("FOUND");
+      return pairs_list[p];
+    }
+  }
+  struct Color c;
+  c.dummy = true;
+  return c;
+}
+
+bool valid_edge(int node_u_index, int node_v_value, Color pair);
+bool valid_edge(int node_u_index, int node_v_value, Color pair){
+  if (node_u_index == pair.source_location || node_u_index == pair.sink_location)
+  {
+    if (node_v_value == 0)
+    {  // if sink/source connects to normal node
+      return true;
+    }
+    else if (node_v_value == pair.color)
+    {  // if sink/source connects to sink/source of same color
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
+}
+
+bool color_encountered(int node_value, int *encountered_list, int PAIRS);
+bool color_encountered(int node_value, int *encountered_list, int PAIRS){
+  for (int p = 0; p < PAIRS; p++)
+  {
+    printf("node_val=%i\n",node_value );
+      printf("encountered_color=%i\n",encountered_list[p] );
+    if (node_value == encountered_list[p])
+    {
+      // printf("TRUE\n");
+
+      return true;
+    }
+  }
+  // printf("FALSE\n");
+  return false;
 }
 
 int computeSolution(void)
@@ -198,6 +261,7 @@ int computeSolution(void)
   const int PAIRS = total_sources_and_sinks/2;
   struct Color *st_pairs = (Color *)malloc(PAIRS * sizeof(Color));
   find_st_pairs(st_pairs, PAIRS, NODES, input_1d);
+
 
   // make the adjaceny matrix
   // TODO rewrite
@@ -305,50 +369,38 @@ int computeSolution(void)
       if (*(adjaceny_matrix + i*NODES + j) > 0.0)
       {                                                                     // if we have an edge
         ad_edges++;                                                         /* compute the number of the edge */
-        glp_set_col_bnds(lp, ad_edges, GLP_DB, 0.0, *(adjaceny_matrix + i*NODES + j)); /* 0<=e<=capacity*/
+        glp_set_col_bnds(lp, ad_edges, GLP_DB, 0.0, 1.0); /* 0<=e<=capacity*/
       }
     }
   }
-
-  // TODO bug in constraints or objective function
-  // when a source or sink node of different colors
-  // are adjacent to each other the results are unexpected!
-  // Do I need to add edges into sink to my objective function?
-  // Or do I need to add the constraint that source_color = sink_color
-
   /* set objective function to max source edges */
-  glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
-  for (int i = 0, ad_edges = 0; i < NODES; i++)
+  // TODO BUG objective function not adding all outgoing edges of source propery
+  glp_set_obj_dir(lp, GLP_MAX); // set maximisation as objective
+  for (int i = 0, edge_num = 0; i < NODES; i++)
   {
     for (int j = 0; j < NODES; j++)
     {
-      // if we come across any edge in the graph
       if (*(adjaceny_matrix + i*NODES + j) > 0.0 )
-      {
-        ad_edges++; /* compute the number of the edge */
-        if (input_1d[i] > 0 || input_1d[j] > 0)  // if edge has source or sink
-        {
-          for (int p = 0; p < PAIRS; ++p)
-          {
-            if (i == st_pairs[p].source_location)
-            {
-              // add the edge to the max obj f
-              printf("Adding e(%i,%i) to obj function\n", i, j);
-              glp_set_obj_coef(lp, ad_edges, 1.0);
-            }
-            if (j == st_pairs[p].sink_location)
-            {  // add sink's edges to the obj f
-              printf("Adding e(%i,%i) to obj function\n", i, j);
-            }
+      {  // if we come across any edge in the graph
+        edge_num++; // track the current edge
+        for (int p = 0; p < PAIRS; ++p)
+        {  // look through all st pairs in graph
+          if (i == st_pairs[p].source_location)
+          {  // if node_i is the source
+            printf("Adding e(%i,%i) to obj function\n", i, j);
+            glp_set_obj_coef(lp, edge_num, 1.0);  // add the edge to the max obj f
           }
-        }
-        else
-        {
-          //glp_set_obj_coef(lp, ad_edges, 0.0); /* other edges not involved */
         }
       }
     }
   }
+
+  int *encountered_colors = (int *)malloc(PAIRS * sizeof(int));
+  for (int p = 0; p < PAIRS; p++)
+  {
+    encountered_colors[p] = 0;
+  }
+  int ec_index = 0;
 
   int index[NODES];    /* indices to define constraint coefficients */
   double value[NODES]; /* values to define constraint coefficients */
@@ -364,6 +416,7 @@ int computeSolution(void)
     // find out if the node is a source node
     bool source = false;
     struct Color st_pair;
+    int pair_index;
     for (int p = 0; p < PAIRS; p++)
     {
       if (input_1d[node] == st_pairs[p].color)
@@ -374,11 +427,15 @@ int computeSolution(void)
         if (st_pairs[p].source_location == node )
           {
             source = true;
+            pair_index = p;
           }
       }
     }
-    int source_edges[4];
-    int se_index = 0;
+
+    // TODO store each source node and all of its valid (inbound of course) edges
+
+    // int source_edges[4];
+
     /* SOURCE NODE CONSTRAINTS */
     if (source)  // if we have the source node
     {
@@ -392,56 +449,55 @@ int computeSolution(void)
           if (*(adjaceny_matrix + i*NODES + j) > 0.0)
           {
             edges++; /* compute the number of the edge */
-
-            // !READ BUG area: if the next encountered sink/source node is
-            // not the sink node of this current source then the next
-            // else if block will not have these edges
-            // ... that's why I have weird behavour when s/ts of different colors
-            // are next to each other ...
-            source_edges[se_index] = edges;  // will have a buffer overflow if we use se_index++
+            // THIS LINE BELOW IS THE BUG SOURCE
+            // sets the bottom left sink's (2) source node index to closest 5
+            // This is because source_edges is overwritten when new source is located
+            //source_edges[se_index] = edges;  // will have a buffer overflow if we use se_index++
             if (i == node)
             {              /* edge is outgoing edge */
               connected++; /* count number of connected edges */
-              index[connected] = edges;
-              value[connected] = 1.0;
-            }
-            if (j == node)
-            {              /* edge is incoming edge */
-              connected++; /* count number of connected edges */
+              printf("(NODE:%i)CONNECTED EDGE : %i\n", node ,edges );
               index[connected] = edges;
               value[connected] = 1.0;
             }
           }
         }
       }
+      for (int i = 1; i <= connected; i++)
+      {
+        st_pairs[pair_index].source_edges[i] = index[i];
+      }
+
       glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
     /* SINK NODE CONSTRAINTS */
-    else if (node == st_pair.sink_location){  // constraints for sinks
-      // TODO implement the constraint:
-      // sum of source edges = sum of sink edges
-
-      // for (int i = 0; i < 4; i++)
-      // {
-      //   printf("%i\n", source_edges[i] );
-      // }
-
-      // src edges - sink edges = 0
-      printf("HERE\n");
-      glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); // set RHS
+    else if (input_1d[node] > 0){  // constraints for sinks
+      glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); // set RHS
       int connected = 0;
-
-      const int MAX_ADJACENT = 0;
-      for (int adj_node = 0; adj_node < MAX_ADJACENT; adj_node++)
+      int linked_source;
+      for (int p = 0; p < PAIRS; p++)
       {
-        if (source_edges[adj_node] > 0)
+        if (node == st_pairs[p].sink_location)
         {
+          linked_source = p;
+          printf("\n\nFOUND SINK!\n");
+          printf("NODE value:%i == SINK LOC: %i == SOURCE LOC: %i\n", input[node], st_pairs[p].sink_location, st_pairs[p].source_location);
+          break;
+        }
+      }
+      // get all ingoing edges into source
+      printf("SOURCE EDGES:\n");
+      for (int i = 0; i < 4; i++)
+      {
+        if (st_pairs[linked_source].source_edges[i] != -1)
+        {
+          printf("%i\n", st_pairs[linked_source].source_edges[i]);
           connected++; /* count number of connected edges */
-          index[connected] = source_edges[adj_node];
+          index[connected] = st_pairs[linked_source].source_edges[i];  // the edge numbers of edges going into matching source node
           value[connected] = -1.0;
         }
       }
-
+      // get all outgoing edges from the sink
       for (i = 0, edges = 0; i < NODES; i++)
       {
         for (j = 0; j < NODES; j++)
@@ -449,36 +505,22 @@ int computeSolution(void)
           if (*(adjaceny_matrix + i*NODES + j) > 0.0)
           {
             edges++; /* compute the number of the edge */
-            if (j == node)
+            if (j == node)  // if j is a color and is also a sink node
             {              /* edge is incoming edge to sink */
-              connected++; /* count number of connected edges */
+              connected++; /* count number of connected edges going into sink */
               index[connected] = edges;
               value[connected] = 1.0;
             }
           }
         }
       }
-
       /* now define the LHS of the constraint */
+      // source node edges - sink node edges = 0
       glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
     /* NON-S,T CONSTRAINTS */
     else // if the node is not a sink node
     {
-      // if node is not adjacent to the sink node
-      int an[4] = {-1, -1, -1, -1};
-      int *adjacent_nodes = determine_adjacent_nodes(node, an);
-      const int MAX_ADJACENT = 0;
-      for (int adj_node = 0; adj_node < MAX_ADJACENT; adj_node++)
-      {
-        // if the node does not connect to a sink node
-        if (input_1d[an[adj_node]] == st_pair.sink_location)
-        {
-          // !READ is this necessary? dont think so
-            continue;
-        }
-      }
-
       glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* set RHS to 0 */
       for (i = 0, edges = 0, connected = 0; i < NODES; i++)
       {
@@ -504,6 +546,36 @@ int computeSolution(void)
       }
       /* now define the LHS of the constraint */
       glp_set_mat_row(lp, 1 + node, connected, index, value);
+
+      // TODO BUG - some nodes have more than one flow into it
+      // This is the last major bug
+
+      // // TODO for each node introduce constraint: sum of inflowing edges = 1
+      // glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); /* set RHS to 0 */
+      // for (i = 0, edges = 0, connected = 0; i < NODES; i++)
+      // {
+      //   for (j = 0; j < NODES; j++)
+      //   {
+      //     if (*(adjaceny_matrix + i*NODES + j) > 0.0)
+      //     {
+      //       edges++; /* compute the number of the edge */
+      //       if (i == node)
+      //       {              /* edge is outgoing edge */
+      //         connected++;
+      //         index[connected] = edges;
+      //         value[connected] = 1.0;
+      //       }
+      //       if (j == node)
+      //       {              /* edge is incoming edge */
+      //         connected++; /* count number of connected edges */
+      //         index[connected] = edges;
+      //         value[connected] = 1.0;
+      //       }
+      //     }
+      //   }
+      // }
+      // /* now define the LHS of the constraint */
+      // glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
   }
 
