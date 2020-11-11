@@ -595,7 +595,7 @@ int computeSolution(void)
   int i;
   int j;
 
-  glp_add_rows(lp, 200); // TODO get better amount of rows (constraints)
+  glp_add_rows(lp, 400); // TODO get better amount of rows (constraints)
   glp_set_obj_dir(lp, GLP_MAX); // set maximisation as objective
   for (int node = 0; node < NODES; node++)
   {
