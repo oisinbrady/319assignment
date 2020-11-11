@@ -212,75 +212,60 @@ Subject To
  F.C.L: + e(v26,v27,4) + e(v21,v27,4) + e(v21,v27,5) + e(v21,v27,3)
  + e(v21,v27,2) + e(v21,v27,1) - e(v27,v28,4) - e(v27,v21,4)
  - e(v27,v21,5) - e(v27,v21,3) - e(v27,v21,2) - e(v27,v21,1) = 0
- color_maintain_flow: - e(v2,v8,1) - e(v2,v3,1) + e(v8,v2,1)
- + e(v3,v2,1) + e(v1,v2,1) = 0
- color_maintain_flow: - e(v3,v4,1) - e(v3,v2,1) + e(v4,v3,1)
- + e(v2,v3,1) = 0
- color_maintain_flow: - e(v4,v10,1) - e(v4,v5,1) - e(v4,v3,1)
- + e(v10,v4,1) + e(v5,v4,1) + e(v3,v4,1) = 0
- color_maintain_flow: - e(v5,v11,1) - e(v5,v6,1) - e(v5,v4,1)
- + e(v11,v5,1) + e(v6,v5,1) + e(v4,v5,1) = 0
- color_maintain_flow: - e(v6,v12,1) - e(v6,v5,1) + e(v12,v6,1)
- + e(v5,v6,1) = 0
- color_maintain_flow: - e(v7,v13,1) - e(v7,v8,1) + e(v13,v7,1)
- + e(v8,v7,1) + e(v1,v7,1) = 0
- color_maintain_flow: - e(v8,v7,1) - e(v8,v2,1) + e(v7,v8,1)
- + e(v2,v8,1) = 0
- color_maintain_flow: - e(v8,v7,2) - e(v8,v2,2) + e(v9,v8,2)
- + e(v7,v8,2) + e(v2,v8,2) - e(v8,v7,1) - e(v8,v2,1) + e(v7,v8,1)
- + e(v2,v8,1) = 0
- color_maintain_flow: - e(v10,v16,1) - e(v10,v11,1) - e(v10,v4,1)
- + e(v16,v10,1) + e(v11,v10,1) + e(v4,v10,1) = 0
- color_maintain_flow: - e(v11,v17,1) - e(v11,v12,1) - e(v11,v10,1)
- - e(v11,v5,1) + e(v17,v11,1) + e(v12,v11,1) + e(v10,v11,1)
- + e(v5,v11,1) = 0
- color_maintain_flow: - e(v12,v18,1) - e(v12,v11,1) - e(v12,v6,1)
- + e(v18,v12,1) + e(v11,v12,1) + e(v6,v12,1) = 0
- color_maintain_flow: - e(v13,v19,1) - e(v13,v7,1) + e(v19,v13,1)
- + e(v7,v13,1) = 0
- color_maintain_flow: - e(v13,v19,2) - e(v13,v7,2) + e(v19,v13,2)
- + e(v7,v13,2) - e(v13,v19,1) - e(v13,v7,1) + e(v19,v13,1) + e(v7,v13,1)
+ C.D.F: - e(v2,v8,1) - e(v2,v3,1) + e(v8,v2,1) + e(v3,v2,1) + e(v1,v2,1)
  = 0
- color_maintain_flow: - e(v15,v21,1) - e(v15,v16,1) + e(v21,v15,1)
- + e(v16,v15,1) = 0
- color_maintain_flow: - e(v16,v17,1) - e(v16,v15,1) - e(v16,v10,1)
- + e(v17,v16,1) + e(v15,v16,1) + e(v10,v16,1) = 0
- color_maintain_flow: - e(v17,v23,1) - e(v17,v18,1) - e(v17,v16,1)
- - e(v17,v11,1) + e(v23,v17,1) + e(v18,v17,1) + e(v16,v17,1)
- + e(v11,v17,1) = 0
- color_maintain_flow: - e(v18,v24,1) - e(v18,v17,1) - e(v18,v12,1)
- + e(v24,v18,1) + e(v17,v18,1) + e(v12,v18,1) = 0
- color_maintain_flow: - e(v19,v13,1) + e(v13,v19,1) = 0
- color_maintain_flow: - e(v19,v25,2) - e(v19,v13,2) + e(v13,v19,2)
- - e(v19,v13,1) + e(v13,v19,1) = 0
- color_maintain_flow: - e(v21,v27,1) - e(v21,v15,1) + e(v27,v21,1)
- + e(v15,v21,1) = 0
- color_maintain_flow: - e(v21,v27,2) - e(v21,v15,2) + e(v27,v21,2)
- + e(v15,v21,2) - e(v21,v27,1) - e(v21,v15,1) + e(v27,v21,1)
- + e(v15,v21,1) = 0
- color_maintain_flow: - e(v23,v24,1) - e(v23,v17,1) + e(v24,v23,1)
- + e(v17,v23,1) = 0
- color_maintain_flow: - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1)
- + e(v23,v24,1) + e(v18,v24,1) = 0
- color_maintain_flow: - e(v24,v23,2) - e(v24,v18,2) + e(v23,v24,2)
- + e(v18,v24,2) - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1)
- + e(v23,v24,1) + e(v18,v24,1) = 0
- color_maintain_flow: - e(v24,v23,3) - e(v24,v18,3) + e(v23,v24,3)
- + e(v18,v24,3) - e(v24,v23,2) - e(v24,v18,2) + e(v23,v24,2)
- + e(v18,v24,2) - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1)
- + e(v23,v24,1) + e(v18,v24,1) = 0
- color_maintain_flow: - e(v27,v21,1) + e(v21,v27,1) = 0
- color_maintain_flow: - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1)
- + e(v21,v27,1) = 0
- color_maintain_flow: - e(v27,v21,3) + e(v21,v27,3) - e(v27,v21,2)
- + e(v21,v27,2) - e(v27,v21,1) + e(v21,v27,1) = 0
- color_maintain_flow: - e(v27,v21,5) + e(v21,v27,5) - e(v27,v21,3)
- + e(v21,v27,3) - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1)
- + e(v21,v27,1) = 0
- color_maintain_flow: - e(v27,v28,4) - e(v27,v21,4) + e(v26,v27,4)
- + e(v21,v27,4) - e(v27,v21,5) + e(v21,v27,5) - e(v27,v21,3)
- + e(v21,v27,3) - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1)
- + e(v21,v27,1) = 0
+ C.D.F: - e(v3,v4,1) - e(v3,v2,1) + e(v4,v3,1) + e(v2,v3,1) = 0
+ C.D.F: - e(v4,v10,1) - e(v4,v5,1) - e(v4,v3,1) + e(v10,v4,1)
+ + e(v5,v4,1) + e(v3,v4,1) = 0
+ C.D.F: - e(v5,v11,1) - e(v5,v6,1) - e(v5,v4,1) + e(v11,v5,1)
+ + e(v6,v5,1) + e(v4,v5,1) = 0
+ C.D.F: - e(v6,v12,1) - e(v6,v5,1) + e(v12,v6,1) + e(v5,v6,1) = 0
+ C.D.F: - e(v7,v13,1) - e(v7,v8,1) + e(v13,v7,1) + e(v8,v7,1)
+ + e(v1,v7,1) = 0
+ C.D.F: - e(v8,v7,1) - e(v8,v2,1) + e(v7,v8,1) + e(v2,v8,1) = 0
+ C.D.F: - e(v8,v7,2) - e(v8,v2,2) + e(v9,v8,2) + e(v7,v8,2) + e(v2,v8,2)
+ - e(v8,v7,1) - e(v8,v2,1) + e(v7,v8,1) + e(v2,v8,1) = 0
+ C.D.F: - e(v10,v16,1) - e(v10,v11,1) - e(v10,v4,1) + e(v16,v10,1)
+ + e(v11,v10,1) + e(v4,v10,1) = 0
+ C.D.F: - e(v11,v17,1) - e(v11,v12,1) - e(v11,v10,1) - e(v11,v5,1)
+ + e(v17,v11,1) + e(v12,v11,1) + e(v10,v11,1) + e(v5,v11,1) = 0
+ C.D.F: - e(v12,v18,1) - e(v12,v11,1) - e(v12,v6,1) + e(v18,v12,1)
+ + e(v11,v12,1) + e(v6,v12,1) = 0
+ C.D.F: - e(v13,v19,1) - e(v13,v7,1) + e(v19,v13,1) + e(v7,v13,1) = 0
+ C.D.F: - e(v13,v19,2) - e(v13,v7,2) + e(v19,v13,2) + e(v7,v13,2)
+ - e(v13,v19,1) - e(v13,v7,1) + e(v19,v13,1) + e(v7,v13,1) = 0
+ C.D.F: - e(v15,v21,1) - e(v15,v16,1) + e(v21,v15,1) + e(v16,v15,1) = 0
+ C.D.F: - e(v16,v17,1) - e(v16,v15,1) - e(v16,v10,1) + e(v17,v16,1)
+ + e(v15,v16,1) + e(v10,v16,1) = 0
+ C.D.F: - e(v17,v23,1) - e(v17,v18,1) - e(v17,v16,1) - e(v17,v11,1)
+ + e(v23,v17,1) + e(v18,v17,1) + e(v16,v17,1) + e(v11,v17,1) = 0
+ C.D.F: - e(v18,v24,1) - e(v18,v17,1) - e(v18,v12,1) + e(v24,v18,1)
+ + e(v17,v18,1) + e(v12,v18,1) = 0
+ C.D.F: - e(v19,v13,1) + e(v13,v19,1) = 0
+ C.D.F: - e(v19,v25,2) - e(v19,v13,2) + e(v13,v19,2) - e(v19,v13,1)
+ + e(v13,v19,1) = 0
+ C.D.F: - e(v21,v27,1) - e(v21,v15,1) + e(v27,v21,1) + e(v15,v21,1) = 0
+ C.D.F: - e(v21,v27,2) - e(v21,v15,2) + e(v27,v21,2) + e(v15,v21,2)
+ - e(v21,v27,1) - e(v21,v15,1) + e(v27,v21,1) + e(v15,v21,1) = 0
+ C.D.F: - e(v23,v24,1) - e(v23,v17,1) + e(v24,v23,1) + e(v17,v23,1) = 0
+ C.D.F: - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1) + e(v23,v24,1)
+ + e(v18,v24,1) = 0
+ C.D.F: - e(v24,v23,2) - e(v24,v18,2) + e(v23,v24,2) + e(v18,v24,2)
+ - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1) + e(v23,v24,1)
+ + e(v18,v24,1) = 0
+ C.D.F: - e(v24,v23,3) - e(v24,v18,3) + e(v23,v24,3) + e(v18,v24,3)
+ - e(v24,v23,2) - e(v24,v18,2) + e(v23,v24,2) + e(v18,v24,2)
+ - e(v24,v30,1) - e(v24,v23,1) - e(v24,v18,1) + e(v23,v24,1)
+ + e(v18,v24,1) = 0
+ C.D.F: - e(v27,v21,1) + e(v21,v27,1) = 0
+ C.D.F: - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1) + e(v21,v27,1) = 0
+ C.D.F: - e(v27,v21,3) + e(v21,v27,3) - e(v27,v21,2) + e(v21,v27,2)
+ - e(v27,v21,1) + e(v21,v27,1) = 0
+ C.D.F: - e(v27,v21,5) + e(v21,v27,5) - e(v27,v21,3) + e(v21,v27,3)
+ - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1) + e(v21,v27,1) = 0
+ C.D.F: - e(v27,v28,4) - e(v27,v21,4) + e(v26,v27,4) + e(v21,v27,4)
+ - e(v27,v21,5) + e(v21,v27,5) - e(v27,v21,3) + e(v21,v27,3)
+ - e(v27,v21,2) + e(v21,v27,2) - e(v27,v21,1) + e(v21,v27,1) = 0
 
 Bounds
  0 <= e(v1,v2,1) <= 1

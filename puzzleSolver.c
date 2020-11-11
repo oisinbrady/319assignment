@@ -297,7 +297,7 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
   double value[NODES*NODES];
   int connected = 0;
   int edge_id = 0;
-  // TODO complete this
+  // TODO BUG row number out of range
 
   // get all the edges for the node in each color
   // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
@@ -339,7 +339,7 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
     }
     // set RHS
     glp_set_row_bnds(lp, row, GLP_FX, 0.0, 0.0); /* RHS = 0 */
-    glp_set_row_name(lp, row, "color maintain flow");  // "flow conservation constraint"
+    glp_set_row_name(lp, row, "C.D.F");  // "Color distinct flow"
     /* LHS: sum(incoming edges) 1 */
     glp_set_mat_row(lp, row, connected, index, value);
     row++;
@@ -347,6 +347,36 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
     // set row name
   }
 }
+
+bool sink_shares_e_with_source(struct Node* node_info, int linked_source, int sink);
+bool sink_shares_e_with_source(struct Node* node_info, int linked_source, int sink){
+  // TODO source_e < 4 * PAIRS ?????
+  for (int source_e = 0; source_e < numCols*numRows; source_e++)  // TODO change range along with node_info.out/inc edge malloc init (~ln 407)
+  {
+    if (node_info[linked_source].outgoing_edges[source_e] != -1)
+    {
+      for (int sink_e = 0; sink_e < numCols*numRows; sink_e++)
+      {
+        if (node_info[sink].incoming_edges[sink_e] != -1)
+        {
+          if (node_info[sink].incoming_edges[sink_e] == node_info[linked_source].outgoing_edges[source_e])
+          {
+            return true;
+          }
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
+    else
+    {
+      return false;
+    }
+  }
+}
+
 
 int computeSolution(void)
 {
@@ -565,7 +595,7 @@ int computeSolution(void)
   int i;
   int j;
 
-  glp_add_rows(lp, NODES*(PAIRS*2)); // TODO get better amount of rows (constraints)
+  glp_add_rows(lp, 200); // TODO get better amount of rows (constraints)
   glp_set_obj_dir(lp, GLP_MAX); // set maximisation as objective
   for (int node = 0; node < NODES; node++)
   {
@@ -578,7 +608,7 @@ int computeSolution(void)
         /* set objective function to max flow of source edges */
         connected++;  /* count number of connected edges */
         glp_set_obj_coef(lp, node_info[node].outgoing_edges[edge_id], 1.0);
-        /* record edge id and set its value to +1.0 */
+        // record edge id and set its value to +1.0
         index[connected] = node_info[node].outgoing_edges[edge_id];
         value[connected] = 1.0;
         edge_id++;
@@ -589,7 +619,8 @@ int computeSolution(void)
       glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
     else if (node_info[node].sink)
-    {
+    {  // TODO problem area for in07.txt row duplicates
+      // if sink in edge is same as source out edge then error, duplicate rows
       int connected = 0; /* number of edges in the constraint */
       int linked_source;
       for (int p = 0; p < PAIRS; p++)
@@ -600,27 +631,32 @@ int computeSolution(void)
           break;
         }
       }
-      int source_edge_id = 0;
-      while(node_info[linked_source].outgoing_edges[source_edge_id] != -1)
-      {  /* record edge id and set its value to +1.0 */
-        connected++;
-        index[connected] = node_info[linked_source].outgoing_edges[source_edge_id];
-        value[connected] = 1.0;
-        source_edge_id++;
-      }
-      int sink_edge_id = 0;
-      while(node_info[node].incoming_edges[sink_edge_id] != -1)
+
+      if (!sink_shares_e_with_source(node_info, linked_source, node))
       {
-        connected++;
-        /* record edge id and set its value to -1.0 */
-        index[connected] = node_info[node].incoming_edges[sink_edge_id];
-        value[connected] = -1.0;
-        sink_edge_id++;
+         // for all non-shared s-t edges, add edge to sink constraint
+        int source_edge_id = 0;
+        while(node_info[linked_source].outgoing_edges[source_edge_id] != -1)
+        {  /* record edge id and set its value to +1.0 */
+          connected++;
+          index[connected] = node_info[linked_source].outgoing_edges[source_edge_id];
+          value[connected] = 1.0;
+          source_edge_id++;
+        }
+        int sink_edge_id = 0;
+        while(node_info[node].incoming_edges[sink_edge_id] != -1)
+        {
+          connected++;
+          /* record edge id and set its value to -1.0 */
+          index[connected] = node_info[node].incoming_edges[sink_edge_id];
+          value[connected] = -1.0;
+          sink_edge_id++;
+        }
+        glp_set_row_name(lp, 1 + node, "SINK");
+        glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
+        /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
+        glp_set_mat_row(lp, 1 + node, connected, index, value);
       }
-      glp_set_row_name(lp, 1 + node, "SINK");
-      glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
-      /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
-      glp_set_mat_row(lp, 1 + node, connected, index, value);
     }
     else
     {
