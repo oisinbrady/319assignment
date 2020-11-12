@@ -85,34 +85,27 @@ struct Node{
   int node_id;
   bool source;
   bool sink;
-  // TODO is there a better way of initializing the array sizes
-  // N.B. it's not a case of array size = 4, because we also have to consider
-  //      the number of color pairs (edge edge has x PAIRS equilvents (if not st involved))
   int *incoming_edges;
   int *outgoing_edges;
 };
 
-void build_solution(int *solution, int *adjaceny_matrix, glp_prob *lp);
+void build_solution(int *solution, glp_prob *lp, const int EDGES);
 
-void build_solution(int *solution, int *adjaceny_matrix, glp_prob *lp){
-  // for debugging
+void build_solution(int *solution, glp_prob *lp, const int EDGES){
   double flow;
   const int NODES = (numCols*numRows);
-  for (int i = 0, edges = 0; i < NODES; i++)
+  for (int i = 1, edges = 0; i <= EDGES; i++)
   {
-    for (int j = 0; j < NODES; j++)
+    const char *edge_name = glp_get_col_name(lp, i);
+    flow = glp_get_col_prim(lp, i);
+    if (flow > 0.0)
     {
-
-      if (*(adjaceny_matrix + i*NODES + j) > 0.0) // if an edge exists
-      {
-        edges++;                            /* compute the number of the edge */
-        flow = glp_get_col_prim(lp, edges); /* get the flow value */
-        if (flow > 0.0)
-        {
-          solution[i] = flow;
-          solution[j] = flow;
-        }
-      }
+      // TODO: from the edge name:
+          // start at character 3 in the edge name (start of the node_u number)
+      // find node u, find node v
+      // N.B. This could be a number with digits > 1!!!
+      // solution[node_u] = 1
+      // solution[node_v] = 1
     }
   }
 }
@@ -204,12 +197,12 @@ void lp_make_col(glp_prob *lp, int col_id, int node_u, int node_v, int color){
 void lp_make_row(glp_prob *lp, int row_id, int node_u, int *adjacent_nodes, int color);
 
 void lp_make_row(glp_prob *lp, int row_id, int node_u, int *adjacent_nodes, int color){
-
+  // TODO for refactoring
 }
 
-int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS);
+int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS, struct Node* node_info);
 
-int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS){
+int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS, struct Node* node_info){
   // Traverse the adjaceny matrix and count the number of edges
   int edges = 0;
   for (int i = 0; i < NODES; i++)
@@ -219,8 +212,14 @@ int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS){
       //printf("%d ", *((adjaceny_matrix+i*t_nodes) + j)); //DEBUG print matrix
       if (*((adjaceny_matrix+i*NODES) + j) == 1)
       {
-        // TODO this is not an accurate calculation of the number of edges
-        for (int p = 0; p <= PAIRS; p++)
+        if (!node_info[i].sink && !node_info[i].source)
+        {
+          for (int p = 0; p <= PAIRS; p++)
+          {
+            edges++;
+          }
+        }
+        else
         {
           edges++;
         }
@@ -289,21 +288,48 @@ void lp_make_row_flow_cons(glp_prob *lp, struct Node* node_info, int node, int N
   glp_set_mat_row(lp, 1 + node + NODES, connected, index, value);
 }
 
-void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs);
-void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs){
-  // for each color, make a constraint for each node:
+int lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs, int row);
+int lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs, int row){
+  // for each color, make a "C.D.F" constraint for each node:
   // sum of incoming edges for color - sum of outgoing edges for color = 0
-  int index[NODES*NODES];  // TODO find better array sizes
-  double value[NODES*NODES];
-  int connected = 0;
-  int edge_id = 0;
-  // TODO BUG row number out of range
+
+  // TODO BUG not all rows are being made
+  // BUT the correct edges are printing w/in the while loop:
+  // so, perhaps rows are being overwritten?
+
+  // FACT: C.D.Fs constraints are not color distinct! (check output.txt of in09.txt)
+  // I think rows are being overwitten - e.g. node 7, therefore color 3 = row 67, color 1 = row 68,
+  // color 2 = row 69 ;), color 4 = row 70 THEN node 8, color 3 = row 68, etc. so overlap
+
+  // IDEA function should return the next available row
+
+  if (node == 6)
+    {
+      printf("HERE\n");
+    }
 
   // get all the edges for the node in each color
   // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
-  int row = 1 + node + NODES + NODES;
   for (int p = 0; p < PAIRS; p++)
   {
+    if (node == 6)
+    {
+      printf("COLOR=%i\n", st_pairs[p].color);
+    }
+
+    // TODO moving these here made all C.D.F constraints only contain one color,
+    // BUT, there are missing C.D.F constraints for many node colors
+    // E.g: edge 7->8 only has C.D.F for color 3!
+
+    // IDEA check print status when we are at node = 7
+    // what is happening to the rows for the other colors that are not color = 3?
+    int index[NODES*NODES];  // TODO find better array sizes
+    double value[NODES*NODES];
+    int connected = 0;
+    int edge_id = 0;
+
+
+
     int i_edge_id = 0;  // incoming edge id
     // get the incoming edges of the current color
     while(node_info[node].incoming_edges[i_edge_id] != -1)
@@ -311,9 +337,17 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
       const char *name = glp_get_col_name(lp, node_info[node].incoming_edges[i_edge_id]);
       // TODO! This wont work if the color is greater than 2 digits
       int edge_color = (int)name[strlen(name) - 2] - 48;
+      if (node == 6)
+      {
+        printf("INBOUND NODE 7\n");
+      }
+
       if (edge_color == st_pairs[p].color)
       {
-
+        if (node == 6)
+        {
+          printf("%s\n", name);
+        }
         connected++;
         index[connected] = node_info[node].incoming_edges[i_edge_id];
         value[connected] = 1.0;
@@ -323,6 +357,10 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
 
 
     int o_edge_id = 0; // outgoing edge id
+    if (node == 6)
+    {
+      printf("OUTBOUND NODE 7\n");
+    }
     while(node_info[node].outgoing_edges[o_edge_id] != -1)
     {
       // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
@@ -331,6 +369,10 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
       int edge_color = (int)name[strlen(name) - 2] - 48;
       if (edge_color == st_pairs[p].color)
       {
+        if (node == 6)
+        {
+          printf("%s\n", name);
+        }
         connected++;
         index[connected] = node_info[node].outgoing_edges[o_edge_id];
         value[connected] = -1.0;
@@ -341,11 +383,23 @@ void lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, 
     glp_set_row_bnds(lp, row, GLP_FX, 0.0, 0.0); /* RHS = 0 */
     glp_set_row_name(lp, row, "C.D.F");  // "Color distinct flow"
     /* LHS: sum(incoming edges) 1 */
+    if (node == 6)
+    {
+     printf("ROW=%i\n", row);
+    }
+
     glp_set_mat_row(lp, row, connected, index, value);
     row++;
     // set the LHS
     // set row name
+
   }
+  if (node == 6)
+  {
+    printf("LEAVING\n");
+  }
+
+  return row;
 }
 
 bool sink_shares_e_with_source(struct Node* node_info, int linked_source, int sink);
@@ -538,7 +592,7 @@ int computeSolution(void)
     }
   }
 
-  const int EDGES = count_edges(NODES, (int *)adjaceny_matrix, PAIRS);
+  const int EDGES = count_edges(NODES, (int *)adjaceny_matrix, PAIRS, node_info);
   /* set all EDGE capacity constraints (bounds) */
   glp_add_cols(lp, EDGES);
   int col_id = 0;
@@ -548,10 +602,6 @@ int computeSolution(void)
     {
       if (*(adjaceny_matrix + node_u*NODES + node_v) == 1)
       {
-
-        // printf("NODE=%i\n", node_u);
-        // printf("source?=%i\n", node_info[node_u].source);
-
         if (is_source(node_u, st_pairs, PAIRS))
         {
           col_id++;
@@ -559,7 +609,7 @@ int computeSolution(void)
           lp_make_col(lp, col_id, node_u, node_v, color);
           /* store node's edges */
           node_info_outgoing_edge(node_info, node_u, col_id, NODES);
-          /* store incoming edge to node_v's info */
+          /* store incoming edge to node_v's (u -> v) info */
           node_info_incoming_edge(node_info, node_v, col_id, NODES);
         }
         else if (is_sink(node_v, st_pairs, PAIRS))
@@ -577,9 +627,6 @@ int computeSolution(void)
           {  /* create the edge for each color */
             col_id++;
             int color = st_pairs[p].color;
-            // printf("COLOR=%i\n", color);
-            // printf("NODE_u=%i\n", node_u);
-            // printf("NODE_v=%i\n", node_v);
             lp_make_col(lp, col_id, node_u, node_v, color);
             node_info_incoming_edge(node_info, node_v, col_id, NODES);
             node_info_outgoing_edge(node_info, node_u, col_id, NODES);
@@ -595,7 +642,10 @@ int computeSolution(void)
   int i;
   int j;
 
-  glp_add_rows(lp, 400); // TODO get better amount of rows (constraints)
+  int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
+
+  const int total_constraints = (NODES * PAIRS) + (NODES * total_sources_and_sinks);
+  glp_add_rows(lp, total_constraints); // TODO get better amount of rows (constraints)
   glp_set_obj_dir(lp, GLP_MAX); // set maximisation as objective
   for (int node = 0; node < NODES; node++)
   {
@@ -674,20 +724,9 @@ int computeSolution(void)
       glp_set_mat_row(lp, 1 + node, connected, index, value);
 
       lp_make_row_flow_cons(lp, node_info, node, NODES);
-      lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs);
+      constraint_3_row = lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs, constraint_3_row);
     }
   }
-
-
-
-  // TODO add this constraint
-  /* RHS: = 0 */
-  /* LHS: = sum(incoming edges) - sum(outgoing edges), for current node */
-
-  // TODO add this constraint
-  /* RHS: <= 1 */
-  /* LHS: = sum(incoming edges of color x) - sum(outgoing edges of color x), for current node */
-
   glp_term_out(0);
   glp_simplex(lp, NULL); // solve LP via simplex algorithm
   printf("Maximal flow is %f\n", glp_get_obj_val(lp));
@@ -695,7 +734,7 @@ int computeSolution(void)
   /* read and print actual flow */
   print_edge_flows(lp, EDGES);
   /* build the solution graph */
-  build_solution(solution, adjaceny_matrix, lp);
+  build_solution(solution, lp, EDGES);
   glp_write_lp(lp, NULL, "output.txt"); // DEBUG: print the LP problem
   /* house-keeping */
   glp_delete_prob(lp);
