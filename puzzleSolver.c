@@ -671,7 +671,7 @@ int computeSolution(void)
   glp_simplex(lp, NULL); /* solve LP via Simplex algorithm */
 
   /* DEBUG functions */
-  glp_write_lp(lp, NULL, "output.txt"); // DEBUG: write the LP problem to a file
+  glp_write_lp(lp, NULL, "ignore_files/output.txt"); // DEBUG: write the LP problem to a file
   // print_edge_flows(lp, EDGES);  /* print edge flow values */
   // printf("\nMaximal flow is %f\n\n", glp_get_obj_val(lp));
 
