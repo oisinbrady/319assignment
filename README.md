@@ -14,16 +14,16 @@ MAXIMISE Σ f(e(s,.)), For s ∈ V [MAXIMISE SOURCE EDGE FLOW VALUES]
 
 S.T: (GLPK: Columns [structural variables])
 
-  [SOURCE-TO-SINK FLOW CONSERVATION]
+  [SOURCE-TO-SINK FLOW CONSERVATION]<br>
   (1): Σ f(e(s,.)) - Σ f(e(.,t)) = 0, For v ∈ {s,t} where, color(s) = color(t)
 
-  [FLOW CONSERVATION]
+  [FLOW CONSERVATION]<br>
   (2): Σ f(e(v,.)) - Σ f(e(.,v)) = 0, For v ∈ V \{s,t}
 
-  [NON-BRANCHING PATHS]
+  [NON-BRANCHING PATHS]<br>
   (3): Σ f(e(.,v)) <= 1, For v ∈ V \{s}
 
-  [EDGE DISJOINT PATHS B/W COLORS]
+  [EDGE DISJOINT PATHS B/W COLORS]<br>
   (4): Σ f(e(.,v)) - Σ f(e(u,.)) = 0, For v ∈ V \{s,t} where, color(v) = color(u)
 
   Where,
