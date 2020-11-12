@@ -29,892 +29,789 @@ int computeSolution(void); /* computes a solution if possible */
 
 void print_edge_flows(glp_prob *lp, const int EDGES);
 
-void print_edge_flows(glp_prob *lp, const int EDGES){
-  // for debugging
-  double flow;
-  const int NODES = (numCols*numRows);
-  for (int i = 1, edges = 0; i <= EDGES; i++)
-  {                           /* compute the number of the edge */
-    const char *edge_name = glp_get_col_name(lp, i);
-    flow = glp_get_col_prim(lp, i); /* get the flow value */
-    if (flow > 0.0)
-    {
-      fprintf(stdout, "flow(%s)=%f\n", edge_name, flow);
+void print_edge_flows(glp_prob *lp, const int EDGES) {
+    /* for debugging */
+    double flow;
+    for (int i = 1; i <= EDGES; i++) {
+        const char *edge_name = glp_get_col_name(lp, i);
+        flow = glp_get_col_prim(lp, i); /* get the flow value */
+        if (flow > 0.0) {
+            fprintf(stdout, "flow(%s)=%f\n", edge_name, flow);
+        }
     }
-  }
-  printf("\n");
-  glp_write_lp(lp, NULL, "output.txt"); // DEBUG: print the LP problem
+    printf("\n");
 }
 
 int *determine_adjacent_nodes(int node, int *array);
 
-int *determine_adjacent_nodes(int node, int *array)
-{
-  // Identify node's row & column index
-  int x = node % numCols;
-  int y = node / numCols;
-
-
-  // Get all adjacent nodes
-  if (y > 0){  // top
-    array[0] = (y - 1) * numCols + x;
-  }
-  if (x > 0){  // left
-    array[1] = y * numCols + x - 1;
-  }
-  if (x < numCols - 1){  // right
-    array[2] = y * numCols + x + 1;
-  }
-  if (y < numRows - 1){  // bottom
-    array[3] = (y + 1) * numCols + x;
-  }
-  return array;
+int *determine_adjacent_nodes(int node, int *array) {
+    /* Identify node's row & column index */
+    int x = node % numCols;
+    int y = node / numCols;
+    /* Get all adjacent nodes */
+    if (y > 0) {  /* top node */
+        array[0] = (y - 1) * numCols + x;
+    }
+    if (x > 0) {  /* left node */
+        array[1] = y * numCols + x - 1;
+    }
+    if (x < numCols - 1) {  /* right node */
+        array[2] = y * numCols + x + 1;
+    }
+    if (y < numRows - 1) {  /* bottom node */
+        array[3] = (y + 1) * numCols + x;
+    }
+    return array;
 }
 
 struct Color {
-  // the respective source and sink locations of each color
-  int color;
-  int source_location;
-  int sink_location;
-  /* edge numbers of adjacent edges */
-  int source_edges[4];
-  int sink_edges[4];
+    // the respective source and sink locations of each color
+    int color;
+    int source_location;
+    int sink_location;
+    /* edge numbers of adjacent edges */
+    int source_edges[4];
+    int sink_edges[4];
 };
 
-struct Node{
-  int node_id;
-  bool source;
-  bool sink;
-  int *incoming_edges;
-  int *outgoing_edges;
+struct Node {
+    int node_id;
+    bool source;
+    bool sink;
+    int *incoming_edges;
+    int *outgoing_edges;
 };
 
 void build_solution(glp_prob *lp, int *solution, const int EDGES);
 
-void build_solution(glp_prob *lp, int *solution, const int EDGES){
-  for (int i = 1, edges = 0; i <= EDGES; i++)
-  {
-    const char *edge_name = glp_get_col_name(lp, i);
-    if (glp_get_col_prim(lp, i) > 0.0)
-    {
-      int v1, v2, color;
-      char regex[] = "%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d";
-      sscanf(edge_name, regex, &v1, &v2, &color);
-      solution[v1-1] = color;
-      solution[v2-1] = color;
+void build_solution(glp_prob *lp, int *solution, const int EDGES) {
+    for (int i = 1; i <= EDGES; i++) {
+        const char *edge_name = glp_get_col_name(lp, i);
+        if (glp_get_col_prim(lp, i) > 0.0) {
+            int v1, v2, color;
+            char regex[] = "%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d";
+            sscanf(edge_name, regex, &v1, &v2, &color);
+            solution[v1 - 1] = color;
+            solution[v2 - 1] = color;
+        }
     }
-  }
 }
 
-void find_st_pairs(struct Color* st_pairs, int PAIRS, int NODES, int *input_1d, struct Node* node_info);
-void find_st_pairs(struct Color* st_pairs, int PAIRS, int NODES, int *input_1d, struct Node* node_info){
-  for (int i = 0, pair_counter = 0; i < NODES; i++)
-  {
-    for (int j = i+1; j < NODES; j++)
-    {
-      // if we have seen this color before
-      if (input_1d[i] != 0 && input_1d[j] != 0)
-      {
-        if (input_1d[i] == input_1d[j] && input_1d[i] != 0){
-        struct Color c;
-        c.color = input_1d[i];
-        c.source_location = i;
-        c.sink_location = j;
-        st_pairs[pair_counter] = c;
-        pair_counter++;
-        node_info[i].source = true;
-        node_info[j].sink = true;
-        }
-      }
-    }
-  }
-  // initialise all source's outbound edges
-  // TODO for some reason this does not work if we are inside the loop above
+void find_st_pairs(struct Color *st_pairs, int PAIRS, int NODES, int *input_1d, struct Node *node_info);
 
-  for (int p = 0; p < PAIRS; p++)
-  {
-    for (int i = 0; i < 4; i++)
-    {
-      st_pairs[p].source_edges[i] = -1;
+void find_st_pairs(struct Color *st_pairs, int PAIRS, int NODES, int *input_1d, struct Node *node_info) {
+    for (int i = 0, pair_counter = 0; i < NODES; i++) {
+        for (int j = i + 1; j < NODES; j++) {
+            // if we have seen this color before
+            if (input_1d[i] != 0 && input_1d[j] != 0) {
+                if (input_1d[i] == input_1d[j] && input_1d[i] != 0) {
+                    struct Color c;
+                    c.color = input_1d[i];
+                    c.source_location = i;
+                    c.sink_location = j;
+                    st_pairs[pair_counter] = c;
+                    pair_counter++;
+                    node_info[i].source = true;
+                    node_info[j].sink = true;
+                }
+            }
+        }
     }
-  }
+    // initialise all source's outbound edges
+    // TODO for some reason this does not work if we are inside the loop above
+
+    for (int p = 0; p < PAIRS; p++) {
+        for (int i = 0; i < 4; i++) {
+            st_pairs[p].source_edges[i] = -1;
+        }
+    }
 }
 
 int get_color(int node_u, int node_v, int input[]);
 
-int get_color(int node_u, int node_v, int input[]){
-  if (input[node_u] > 0)
-  {
-    return input[node_u];
-  }
-  else
-  {
-    return input[node_v];
-  }
-  return 0;
+int get_color(int node_u, int node_v, int input[]) {
+    if (input[node_u] > 0) {
+        return input[node_u];
+    } else {
+        return input[node_v];
+    }
 }
 
-bool is_source(int node_u, struct Color* st_pairs, int PAIRS);
+bool is_source(int node_u, struct Color *st_pairs, int PAIRS);
 
-bool is_source(int node_u, struct Color* st_pairs, int PAIRS){
-  for (int p = 0; p < PAIRS; p++)
-  {
-    if (st_pairs[p].source_location == node_u)
-    {
-      return true;
+bool is_source(int node_u, struct Color *st_pairs, int PAIRS) {
+    for (int p = 0; p < PAIRS; p++) {
+        if (st_pairs[p].source_location == node_u) {
+            return true;
+        }
     }
-  }
-  return false;
+    return false;
 }
 
-bool is_sink(int node_v, struct Color* st_pairs, int PAIRS);
+bool is_sink(int node_v, struct Color *st_pairs, int PAIRS);
 
-bool is_sink(int node_v, struct Color* st_pairs, int PAIRS){
-  for (int p = 0; p < PAIRS; p++)
-  {
-    if (st_pairs[p].sink_location == node_v)
-    {
-      return true;
+bool is_sink(int node_v, struct Color *st_pairs, int PAIRS) {
+    for (int p = 0; p < PAIRS; p++) {
+        if (st_pairs[p].sink_location == node_v) {
+            return true;
+        }
     }
-  }
-  return false;
+    return false;
 }
 
 void lp_make_col(glp_prob *lp, int col_id, int node_u, int node_v, int color);
 
-void lp_make_col(glp_prob *lp, int col_id, int node_u, int node_v, int color){
-  char edge_name[256];
-  sprintf(edge_name, "e(v%i,v%i,%i)", node_u+1, node_v+1, color);
-  glp_set_col_bnds(lp, col_id, GLP_DB, 0.0, 1.0); /* 0<=e<=capacity*/
-  glp_set_col_name(lp, col_id, edge_name);
+void lp_make_col(glp_prob *lp, int col_id, int node_u, int node_v, int color) {
+    char edge_name[256];
+    sprintf(edge_name, "e(v%i,v%i,%i)", node_u + 1, node_v + 1, color);
+    glp_set_col_bnds(lp, col_id, GLP_DB, 0.0, 1.0); /* 0<=e<=capacity*/
+    glp_set_col_name(lp, col_id, edge_name);
 }
 
-void lp_make_row(glp_prob *lp, int row_id, int node_u, int *adjacent_nodes, int color);
+int count_edges(const int NODES, int *adjacency_matrix, const int PAIRS, struct Node *node_info);
 
-void lp_make_row(glp_prob *lp, int row_id, int node_u, int *adjacent_nodes, int color){
-  // TODO for refactoring
-}
-
-int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS, struct Node* node_info);
-
-int count_edges(const int NODES, int *adjaceny_matrix, const int PAIRS, struct Node* node_info){
-  // Traverse the adjaceny matrix and count the number of edges
-  int edges = 0;
-  for (int i = 0; i < NODES; i++)
-  {
-    for (int j = 0; j < NODES; j++)
-    {
-      //printf("%d ", *((adjaceny_matrix+i*t_nodes) + j)); //DEBUG print matrix
-      if (*((adjaceny_matrix+i*NODES) + j) == 1)
-      {
-        if (!node_info[i].sink && !node_info[i].source)
-        {
-          for (int p = 0; p <= PAIRS; p++)
-          {
-            edges++;
-          }
+int count_edges(const int NODES, int *adjacency_matrix, const int PAIRS, struct Node *node_info) {
+    /* Traverse the adjacency matrix and count the number of edges */
+    int edges = 0;
+    for (int i = 0; i < NODES; i++) {
+        for (int j = 0; j < NODES; j++) {
+            //printf("%d ", *((adjacency_matrix+i*t_nodes) + j)); //DEBUG print matrix
+            if (*((adjacency_matrix + i * NODES) + j) == 1) {
+                if (!node_info[i].sink && !node_info[i].source) {
+                    for (int p = 0; p <= PAIRS; p++) {
+                        edges++;
+                    }
+                } else {
+                    edges++;
+                }
+            }
         }
-        else
-        {
-          edges++;
+        // printf("\n");
+    }
+    return edges;
+}
+
+void node_info_incoming_edge(struct Node *node_info, int node_id, int col_id, int NODES);
+
+void node_info_incoming_edge(struct Node *node_info, int node_id, int col_id, int NODES) {
+    for (int n = 0; n < NODES; n++) {
+        if (node_info[node_id].incoming_edges[n] == -1) {
+            node_info[node_id].incoming_edges[n] = col_id;
+            break;
         }
-      }
     }
-    // printf("\n");
-  }
-  return edges;
 }
 
-void node_info_incoming_edge(struct Node* node_info, int node_id, int col_id, int NODES);
-void node_info_incoming_edge(struct Node* node_info, int node_id, int col_id, int NODES){
-  for (int n = 0; n < NODES; n++)
-  {
-    if (node_info[node_id].incoming_edges[n] == -1)
-    {
-      node_info[node_id].incoming_edges[n] = col_id;
-      break;
+void node_info_outgoing_edge(struct Node *node_info, int node_id, int col_id, int NODES);
+
+void node_info_outgoing_edge(struct Node *node_info, int node_id, int col_id, int NODES) {
+    for (int n = 0; n < NODES; n++) {
+        if (node_info[node_id].outgoing_edges[n] == -1) {
+            node_info[node_id].outgoing_edges[n] = col_id;
+            break;
+        }
     }
-  }
 }
 
-void node_info_outgoing_edge(struct Node* node_info, int node_id, int col_id, int NODES);
-void node_info_outgoing_edge(struct Node* node_info, int node_id, int col_id, int NODES){
-  for (int n = 0; n < NODES; n++)
-  {
-    if (node_info[node_id].outgoing_edges[n] == -1)
-    {
-      node_info[node_id].outgoing_edges[n] = col_id;
-      break;
-    }
-  }
-}
+void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int NODES);
 
-void lp_make_row_flow_cons(glp_prob *lp, struct Node* node_info, int node, int NODES);
-void lp_make_row_flow_cons(glp_prob *lp, struct Node* node_info, int node, int NODES){
-  /* Create the flow conservation constraint */
-  int index[NODES*NODES];  // TODO find better array sizes
-  double value[NODES*NODES];
-  int row_id = 1 + node + NODES;
+void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int NODES) {
+    /* Create the flow conservation constraint */
+    int index[NODES * NODES];  // TODO find better array sizes
+    double value[NODES * NODES];
+    int row_id = 1 + node + NODES;
 
-  int connected = 0;
-
-  int o_edge_id = 0; // outgoing edge id
-  while(node_info[node].outgoing_edges[o_edge_id] != -1)
-  {  /* record edge id and set its value to +1.0 */
-    // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
-    connected++;
-    index[connected] = node_info[node].outgoing_edges[o_edge_id];
-    value[connected] = -1.0;
-    o_edge_id++;
-  }
-
-  int i_edge_id = 0;  // incoming edge id
-  while(node_info[node].incoming_edges[i_edge_id] != -1)
-  {  /* record edge id and set its value to +1.0 */
-    connected++;
-    index[connected] = node_info[node].incoming_edges[i_edge_id];
-    value[connected] = 1.0;
-    i_edge_id++;
-  }
-
-
-  glp_set_row_bnds(lp, row_id, GLP_FX, 0.0, 0.0); /* RHS = 0 */
-  glp_set_row_name(lp, row_id, "F.C.L");  // "flow conservation constraint"
-  /* LHS: sum(incoming edges) 1 */
-  glp_set_mat_row(lp, row_id, connected, index, value);
-}
-
-int lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs, int row);
-int lp_make_row_color_distinct(glp_prob *lp, struct Node* node_info, int node, int NODES, int PAIRS, struct Color* st_pairs, int row){
-  // get all the edges for the node in each color
-  // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
-  for (int p = 0; p < PAIRS; p++)
-  {
-    int index[NODES*NODES];  // TODO find better array sizes
-    double value[NODES*NODES];
     int connected = 0;
-    int edge_id = 0;
-
-
-
-    int i_edge_id = 0;  // incoming edge id
-    // get the incoming edges of the current color
-    while(node_info[node].incoming_edges[i_edge_id] != -1)
-    {
-      const char *name = glp_get_col_name(lp, node_info[node].incoming_edges[i_edge_id]);
-      // TODO! This wont work if the color is greater than 2 digits
-      int edge_color = (int)name[strlen(name) - 2] - 48;
-      if (edge_color == st_pairs[p].color)
-      {
-        connected++;
-        index[connected] = node_info[node].incoming_edges[i_edge_id];
-        value[connected] = 1.0;
-      }
-      i_edge_id++;
-    }
-
 
     int o_edge_id = 0; // outgoing edge id
-    while(node_info[node].outgoing_edges[o_edge_id] != -1)
-    {
-      // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
-      const char *name = glp_get_col_name(lp, node_info[node].outgoing_edges[o_edge_id]);
-      // TODO! This wont work if the color is greater than 2 digits
-      int edge_color = (int)name[strlen(name) - 2] - 48;
-      if (edge_color == st_pairs[p].color)
-      {
+    while (node_info[node].outgoing_edges[o_edge_id] != -1) {  /* record edge id and set its value to +1.0 */
+        // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
         connected++;
         index[connected] = node_info[node].outgoing_edges[o_edge_id];
         value[connected] = -1.0;
-      }
-      o_edge_id++;
+        o_edge_id++;
     }
-    // set RHS
-    glp_set_row_bnds(lp, row, GLP_FX, 0.0, 0.0); /* RHS = 0 */
-    glp_set_row_name(lp, row, "C.D.F");  // "Color distinct flow"
+
+    int i_edge_id = 0;  // incoming edge id
+    while (node_info[node].incoming_edges[i_edge_id] != -1) {  /* record edge id and set its value to +1.0 */
+        connected++;
+        index[connected] = node_info[node].incoming_edges[i_edge_id];
+        value[connected] = 1.0;
+        i_edge_id++;
+    }
+
+
+    glp_set_row_bnds(lp, row_id, GLP_FX, 0.0, 0.0); /* RHS = 0 */
+    glp_set_row_name(lp, row_id, "F.C.L");  // "flow conservation constraint"
     /* LHS: sum(incoming edges) 1 */
-    glp_set_mat_row(lp, row, connected, index, value);
-    row++;
-  }
-  return row;
+    glp_set_mat_row(lp, row_id, connected, index, value);
 }
 
-bool sink_shares_e_with_source(struct Node* node_info, int linked_source, int sink);
-bool sink_shares_e_with_source(struct Node* node_info, int linked_source, int sink){
-  // TODO source_e < 4 * PAIRS ?????
-  for (int source_e = 0; source_e < numCols*numRows; source_e++)  // TODO change range along with node_info.out/inc edge malloc init (~ln 407)
-  {
-    if (node_info[linked_source].outgoing_edges[source_e] != -1)
-    {
-      for (int sink_e = 0; sink_e < numCols*numRows; sink_e++)
-      {
-        if (node_info[sink].incoming_edges[sink_e] != -1)
-        {
-          if (node_info[sink].incoming_edges[sink_e] == node_info[linked_source].outgoing_edges[source_e])
-          {
-            return true;
-          }
+int
+lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int NODES, int PAIRS, struct Color *st_pairs,
+                           int row);
+
+int
+lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int NODES, int PAIRS, struct Color *st_pairs,
+                           int row) {
+    // get all the edges for the node in each color
+    // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
+    for (int p = 0; p < PAIRS; p++) {
+        int index[NODES * NODES];  // TODO find better array sizes
+        double value[NODES * NODES];
+        int connected = 0;
+        int i_edge_id = 0;  // incoming edge id
+        // get the incoming edges of the current color
+        while (node_info[node].incoming_edges[i_edge_id] != -1) {
+            const char *name = glp_get_col_name(lp, node_info[node].incoming_edges[i_edge_id]);
+            // TODO! This wont work if the color is greater than 2 digits
+            int edge_color = (int) name[strlen(name) - 2] - 48;
+            if (edge_color == st_pairs[p].color) {
+                connected++;
+                index[connected] = node_info[node].incoming_edges[i_edge_id];
+                value[connected] = 1.0;
+            }
+            i_edge_id++;
         }
-        else
-        {
-          break;
+
+
+        int o_edge_id = 0; // outgoing edge id
+        while (node_info[node].outgoing_edges[o_edge_id] != -1) {
+            // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
+            const char *name = glp_get_col_name(lp, node_info[node].outgoing_edges[o_edge_id]);
+            // TODO! This wont work if the color is greater than 2 digits
+            int edge_color = (int) name[strlen(name) - 2] - 48;
+            if (edge_color == st_pairs[p].color) {
+                connected++;
+                index[connected] = node_info[node].outgoing_edges[o_edge_id];
+                value[connected] = -1.0;
+            }
+            o_edge_id++;
         }
-      }
+        // set RHS
+        glp_set_row_bnds(lp, row, GLP_FX, 0.0, 0.0); /* RHS = 0 */
+        glp_set_row_name(lp, row, "C.D.F");  // "Color distinct flow"
+        /* LHS: sum(incoming edges) 1 */
+        glp_set_mat_row(lp, row, connected, index, value);
+        row++;
     }
-    else
+    return row;
+}
+
+bool sink_shares_e_with_source(struct Node *node_info, int linked_source, int sink);
+
+bool sink_shares_e_with_source(struct Node *node_info, int linked_source, int sink) {
+    // TODO source_e < 4 * PAIRS ?????
+    for (int source_e = 0; source_e < numCols *
+                                      numRows; source_e++)  // TODO change range along with node_info.out/inc edge malloc init (~ln 407)
     {
-      return false;
+        if (node_info[linked_source].outgoing_edges[source_e] != -1) {
+            for (int sink_e = 0; sink_e < numCols * numRows; sink_e++) {
+                if (node_info[sink].incoming_edges[sink_e] != -1) {
+                    if (node_info[sink].incoming_edges[sink_e] == node_info[linked_source].outgoing_edges[source_e]) {
+                        return true;
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else {
+            return false;
+        }
     }
-  }
 }
 
 
 int count_colors(const int NODES, int input_1d[]);
-int count_colors(const int NODES, int input_1d[]){
-  int color = 0;
-  for (int i = 0; i < NODES; i++)
-  {
-    if (input_1d[i] != 0)
-    {
-      color++;
+
+int count_colors(const int NODES, int input_1d[]) {
+    int color = 0;
+    for (int i = 0; i < NODES; i++) {
+        if (input_1d[i] != 0) {
+            color++;
+        }
     }
-  }
-  return color;
+    return color;
 }
 
-int computeSolution(void)
-{
-  const int MAX_ADJACENT = 4;  // the most adjacent nodes(/edges) a node can have
-  const int NODES = numRows * numCols;
-  glp_prob *lp;
-  lp = glp_create_prob();
-  glp_set_prob_name(lp, "MEDP"); // maximum edge disjoint paths - all or nothing
+void init_node_info(struct Node *node_info, const int NODES);
 
-  int *adjaceny_matrix = (int *)malloc(NODES * NODES * sizeof(int));
-  for (int i = 0; i < NODES; i++)
-  {
-    for (int j = 0; j < NODES; j++)
-    {
-      *(adjaceny_matrix + i*NODES + j) = 0;
-    }
-  }
-
-  // map the input graph onto a 1d array
-  int input_1d[NODES];
-  for (int i = 0, next_node = 0; i < numRows; i++)
-  {
-    for (int j = 0; j < numCols; j++)
-    {
-      input_1d[next_node] = input[i * numCols + j];
-      next_node++;
-    }
-  }
-  /* count the total number of source & sink nodes */
-  const int COLORS = count_colors(NODES, input_1d);
-
-  /* An array of Node structs */
-  struct Node *node_info = (struct Node *)malloc(NODES * sizeof(struct Node));
-  /* Initialise Node information */
-  for (int node = 0; node < NODES; node++)
-  {
-    struct Node n;
-    n.incoming_edges = (int *)malloc((numCols*numRows) * sizeof(int));
-    n.outgoing_edges = (int *)malloc((numCols*numRows) * sizeof(int));
-    for (int i = 0; i < (numCols*numRows); i++)
-    {
-      n.incoming_edges[i] = -1;
-      n.outgoing_edges[i] = -1;
-    }
-    n.sink = false;
-    n.source = false;
-    node_info[node] = n;
-  }
-
-  /* find source-sink pair nodes */
-  int source_sink_pair[COLORS/2][2];
-  int pair_count = 0;
-  const int PAIRS = COLORS/2;
-  struct Color *st_pairs = (struct Color *)malloc(PAIRS * sizeof(struct Color));
-  find_st_pairs(st_pairs, PAIRS, NODES, input_1d, node_info);
-
-
-  // make the adjaceny matrix
-  // TODO rewrite
-  for (int i = 0; i < NODES; i++)
-  {
-    if (input_1d[i] != 0)
-    { // if we have a source or sink node
-      /* determine if the node is a source node*/
-      bool is_source = false;
-      struct Color matching_pair;
-      for (int p = 0; p < PAIRS; p++)
-      {
-        if (st_pairs[p].color == input_1d[i])
-        {
-          matching_pair.color = st_pairs[p].color;
-          matching_pair.source_location = st_pairs[p].source_location;
-          matching_pair.sink_location = st_pairs[p].sink_location;
-          if (st_pairs[p].source_location == i )
-          {
-            is_source = true;  /* otherwise we are dealing with a sink node */
-            break;
-          }
+void init_node_info(struct Node *node_info, const int NODES) {
+    /* Initialise Node information */
+    for (int node = 0; node < NODES; node++) {
+        struct Node n;
+        n.incoming_edges = (int *) malloc((numCols * numRows) * sizeof(int));
+        n.outgoing_edges = (int *) malloc((numCols * numRows) * sizeof(int));
+        for (int i = 0; i < (numCols * numRows); i++) {
+            n.incoming_edges[i] = -1;
+            n.outgoing_edges[i] = -1;
         }
-      }
-      if (is_source)
-      {
-        // make the edges for the source/sink node
-        // adjacent node array of the top, left, right, and bottom nodes
-        // if the node does not have a certain directionally adjacent node
-        // it will remain -1 - indicating that there is no edge in this case
-        node_info[i].source = true;
-        int source = i;
-        int an[4] = {-1, -1, -1, -1};
-        int *adjacent_nodes = determine_adjacent_nodes(source, an);
-        // make all edges from source to its adjacent nodes
-        for (int node = 0; node < MAX_ADJACENT; node++)
-        {
-          if (adjacent_nodes[node] != -1)
-          {
+        n.sink = false;
+        n.source = false;
+        node_info[node] = n;
+    }
+}
 
-            // if the edge does not go into another source/sink color
-            int node_index = adjacent_nodes[node];
-            int node_value = input_1d[adjacent_nodes[node]];
-            if (node_index == matching_pair.sink_location || node_value == 0)
-            {
-              // make all edges for the source
-              *(adjaceny_matrix + source*NODES + node_index) = 1;
+void init_adjacency_matrix(int *adjacency_matrix, const int NODES);
+
+void init_adjacency_matrix(int *adjacency_matrix, const int NODES) {
+    for (int i = 0; i < NODES; i++) {
+        for (int j = 0; j < NODES; j++) {
+            *(adjacency_matrix + i * NODES + j) = 0;
+        }
+    }
+}
+
+void
+build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct Color *st_pairs, struct Node *node_info,
+                       int *adjacency_matrix);
+
+void
+build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct Color *st_pairs, struct Node *node_info,
+                       int *adjacency_matrix) {
+    const int MAX_ADJACENT = 4;
+    for (int i = 0; i < NODES; i++) {
+        if (input_1d[i] != 0) { // if we have a source or sink node
+            /* determine if the node is a source node*/
+            bool is_source = false;
+            struct Color matching_pair;
+            for (int p = 0; p < PAIRS; p++) {
+                if (st_pairs[p].color == input_1d[i]) {
+                    matching_pair.color = st_pairs[p].color;
+                    matching_pair.source_location = st_pairs[p].source_location;
+                    matching_pair.sink_location = st_pairs[p].sink_location;
+                    if (st_pairs[p].source_location == i) {
+                        is_source = true;  /* otherwise we are dealing with a sink node */
+                        break;
+                    }
+                }
             }
-          }
-        }
-      }
-      else
-      { //otherwise construct edges going into the sink
-        node_info[i].sink = true;
+            if (is_source) {
+                // make the edges for the source/sink node
+                // adjacent node array of the top, left, right, and bottom nodes
+                // if the node does not have a certain directionally adjacent node
+                // it will remain -1 - indicating that there is no edge in this case
+                node_info[i].source = true;
+                int source = i;
+                int an[4] = {-1, -1, -1, -1};
+                int *adjacent_nodes = determine_adjacent_nodes(source, an);
+                // make all edges from source to its adjacent nodes
+                for (int node = 0; node < MAX_ADJACENT; node++) {
+                    if (adjacent_nodes[node] != -1) {
 
-        int sink = i;
-        int an[4] = {-1, -1, -1, -1};
-        int *adjacent_nodes = determine_adjacent_nodes(sink, an);
-        // make all edges adjacent to the sink going into the sink
-        for (int node = 0; node < MAX_ADJACENT; node++)
-        {
-          if (adjacent_nodes[node] != -1)
-          {
-            int node_index = adjacent_nodes[node];
-            int node_value = input_1d[adjacent_nodes[node]];
-            // if the edge does not go into a different colored source
-            if (node_index == matching_pair.source_location || node_value == 0){
-              // make all edges for the sink
-              *(adjaceny_matrix + node_index*NODES + sink) = 1;
+                        // if the edge does not go into another source/sink color
+                        int node_index = adjacent_nodes[node];
+                        int node_value = input_1d[adjacent_nodes[node]];
+                        if (node_index == matching_pair.sink_location || node_value == 0) {
+                            // make all edges for the source
+                            *(adjacency_matrix + source * NODES + node_index) = 1;
+                        }
+                    }
+                }
+            } else { //otherwise construct edges going into the sink
+                node_info[i].sink = true;
+
+                int sink = i;
+                int an[4] = {-1, -1, -1, -1};
+                int *adjacent_nodes = determine_adjacent_nodes(sink, an);
+                // make all edges adjacent to the sink going into the sink
+                for (int node = 0; node < MAX_ADJACENT; node++) {
+                    if (adjacent_nodes[node] != -1) {
+                        int node_index = adjacent_nodes[node];
+                        int node_value = input_1d[adjacent_nodes[node]];
+                        // if the edge does not go into a different colored source
+                        if (node_index == matching_pair.source_location || node_value == 0) {
+                            // make all edges for the sink
+                            *(adjacency_matrix + node_index * NODES + sink) = 1;
+                        }
+                    }
+                }
             }
-          }
+        } else { // for all other non-source/sink edges
+            int an[4] = {-1, -1, -1, -1};
+            int *adjacent_nodes = determine_adjacent_nodes(i, an);
+            for (int ad_node = 0; ad_node < 4; ad_node++) {
+                // if the node has an adjacent node in this direction
+                if (adjacent_nodes[ad_node] != -1) {
+                    // if the adjacent node is not a source/sink
+                    if (input_1d[adjacent_nodes[ad_node]] == 0) {
+                        // make edges for all e in E not {s,t}
+                        *(adjacency_matrix + i * NODES + adjacent_nodes[ad_node]) = 1;
+                        // a path in the converse direction is also possible
+                        *(adjacency_matrix + adjacent_nodes[ad_node] * NODES + i) = 1;
+                    }
+                }
+            }
         }
-      }
     }
-    else
-    { // for all other non-source/sink edges
-      int an[4] = {-1, -1, -1, -1};
-      int *adjacent_nodes = determine_adjacent_nodes(i, an);
-      for (int ad_node = 0; ad_node < 4; ad_node++)
-      {
-        // if the node has an adjacent node in this direction
-        if (adjacent_nodes[ad_node] != -1)
-        {
-          // if the adjacent node is not a source/sink
-          if (input_1d[adjacent_nodes[ad_node]] == 0)
-          {
-            // make edges for all e in E not {s,t}
-            *(adjaceny_matrix + i*NODES + adjacent_nodes[ad_node]) = 1;
-            // a path in the converse direction is also possible
-            *(adjaceny_matrix + adjacent_nodes[ad_node]*NODES + i) = 1;
-          }
+}
+
+void lp_make_bounds(glp_prob *lp, const int EDGES, int *adjacency_matrix, struct Color *st_pairs, const int PAIRS,
+                    const int NODES, struct Node *node_info, int input_1d[]);
+
+void lp_make_bounds(glp_prob *lp, const int EDGES, int *adjacency_matrix, struct Color *st_pairs, const int PAIRS,
+                    const int NODES, struct Node *node_info, int input_1d[]) {
+    glp_add_cols(lp, EDGES);
+    int col_id = 0;
+    for (int node_u = 0; node_u < NODES; node_u++) {
+        for (int node_v = 0; node_v < NODES; node_v++) {
+            if (*(adjacency_matrix + node_u * NODES + node_v) == 1) {
+                if (is_source(node_u, st_pairs, PAIRS)) {
+                    col_id++;
+                    int color = get_color(node_u, node_v, input_1d);
+                    lp_make_col(lp, col_id, node_u, node_v, color);
+                    /* store node's edges */
+                    node_info_outgoing_edge(node_info, node_u, col_id, NODES);
+                    /* store incoming edge to node_v's (u -> v) info */
+                    node_info_incoming_edge(node_info, node_v, col_id, NODES);
+                } else if (is_sink(node_v, st_pairs, PAIRS)) {
+                    col_id++;
+                    int color = get_color(node_u, node_v, input_1d);
+                    lp_make_col(lp, col_id, node_u, node_v, color);
+                    node_info_incoming_edge(node_info, node_v, col_id, NODES);
+                    /* store outgoing edge to node_u's info */
+                    node_info_outgoing_edge(node_info, node_u, col_id, NODES);
+                } else {  /* if the edge does NOT involve a source or sink node */
+                    for (int p = 0; p < PAIRS; p++) {  /* create the edge for each color */
+                        col_id++;
+                        int color = st_pairs[p].color;
+                        lp_make_col(lp, col_id, node_u, node_v, color);
+                        node_info_incoming_edge(node_info, node_v, col_id, NODES);
+                        node_info_outgoing_edge(node_info, node_u, col_id, NODES);
+                    }
+                }
+            }
         }
-      }
     }
-  }
+}
 
-  const int EDGES = count_edges(NODES, (int *)adjaceny_matrix, PAIRS, node_info);
-  /* set all EDGE capacity constraints (bounds) */
-  glp_add_cols(lp, EDGES);
-  int col_id = 0;
-  for (int node_u = 0; node_u < NODES; node_u++)
-  {
-    for (int node_v = 0; node_v < NODES; node_v++)
-    {
-      if (*(adjaceny_matrix + node_u*NODES + node_v) == 1)
-      {
-        if (is_source(node_u, st_pairs, PAIRS))
-        {
-          col_id++;
-          int color = get_color(node_u, node_v, input_1d);
-          lp_make_col(lp, col_id, node_u, node_v, color);
-          /* store node's edges */
-          node_info_outgoing_edge(node_info, node_u, col_id, NODES);
-          /* store incoming edge to node_v's (u -> v) info */
-          node_info_incoming_edge(node_info, node_v, col_id, NODES);
+void init_input_1d(int input_1d[]);
+
+void init_input_1d(int input_1d[]) {
+    for (int i = 0, next_node = 0; i < numRows; i++) {
+        for (int j = 0; j < numCols; j++) {
+            input_1d[next_node] = input[i * numCols + j];
+            next_node++;
         }
-        else if (is_sink(node_v, st_pairs, PAIRS))
-        {
-          col_id++;
-          int color = get_color(node_u, node_v, input_1d);
-          lp_make_col(lp, col_id, node_u, node_v, color);
-          node_info_incoming_edge(node_info, node_v, col_id, NODES);
-          /* store outgoing edge to node_u's info */
-          node_info_outgoing_edge(node_info, node_u, col_id, NODES);
-        }
-        else
-        {  /* if the edge does NOT involve a source or sink node */
-          for (int p = 0; p < PAIRS; p++)
-          {  /* create the edge for each color */
-            col_id++;
-            int color = st_pairs[p].color;
-            lp_make_col(lp, col_id, node_u, node_v, color);
-            node_info_incoming_edge(node_info, node_v, col_id, NODES);
-            node_info_outgoing_edge(node_info, node_u, col_id, NODES);
-          }
-        }
-      }
     }
-  }
+}
 
-  int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
-  const int CONSTRAINTS = (NODES * PAIRS) + (NODES * COLORS);
-  glp_add_rows(lp, CONSTRAINTS);
-  glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
-  for (int node = 0; node < NODES; node++)
-  {
-    int index[NODES];    /* indices to define constraint coefficients */
-    double value[NODES]; /* values to define constraint coefficients */
-    int connected;       /* number of edges connected to specific node  */
-    int i;
-    int j;
-    if (node_info[node].source)
-    {
-      int edge_id = 0;
-      int connected = 0;
-      while(node_info[node].outgoing_edges[edge_id] != -1)
-      {
-        /* set objective function to max flow of source edges */
-        connected++;  /* count number of connected edges */
-        glp_set_obj_coef(lp, node_info[node].outgoing_edges[edge_id], 1.0);
-        // record edge id and set its value to +1.0
-        index[connected] = node_info[node].outgoing_edges[edge_id];
-        value[connected] = 1.0;
-        edge_id++;
-      }
-      /* set constraint for source: sum(outgoing edges) <= 1 */
-      glp_set_row_name(lp, 1 + node, "SOURCE");
-      glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0);
-      glp_set_mat_row(lp, 1 + node, connected, index, value);
-    }
-    else if (node_info[node].sink)
-    {
-      int connected = 0; /* number of edges in the constraint */
-      int linked_source;
-      for (int p = 0; p < PAIRS; p++)
-      {  /* find the sink's source */
-        if (st_pairs[p].color == input_1d[node])
-        {
-          linked_source = st_pairs[p].source_location;
-          break;
+void lp_make_constraints(glp_prob *lp, const int COLORS, const int NODES, const int PAIRS, struct Node *node_info,
+                         struct Color *st_pairs, int input_1d[]);
+
+void lp_make_constraints(glp_prob *lp, const int COLORS, const int NODES, const int PAIRS, struct Node *node_info,
+                         struct Color *st_pairs, int input_1d[]) {
+    int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
+    const int CONSTRAINTS = (NODES * PAIRS) + (NODES * COLORS);
+    glp_add_rows(lp, CONSTRAINTS);
+    glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
+    for (int node = 0; node < NODES; node++) {
+        int index[NODES];    /* indices to define constraint coefficients */
+        double value[NODES]; /* values to define constraint coefficients */
+        if (node_info[node].source) {
+            int edge_id = 0;
+            int connected = 0;
+            while (node_info[node].outgoing_edges[edge_id] != -1) {
+                /* set objective function to max flow of source edges */
+                connected++;  /* count number of connected edges */
+                glp_set_obj_coef(lp, node_info[node].outgoing_edges[edge_id], 1.0);
+                // record edge id and set its value to +1.0
+                index[connected] = node_info[node].outgoing_edges[edge_id];
+                value[connected] = 1.0;
+                edge_id++;
+            }
+            /* set constraint for source: sum(outgoing edges) <= 1 */
+            glp_set_row_name(lp, 1 + node, "SOURCE");
+            glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0);
+            glp_set_mat_row(lp, 1 + node, connected, index, value);
+        } else if (node_info[node].sink) {
+            int connected = 0; /* number of edges in the constraint */
+            int linked_source;
+            for (int p = 0; p < PAIRS; p++) {  /* find the sink's source */
+                if (st_pairs[p].color == input_1d[node]) {
+                    linked_source = st_pairs[p].source_location;
+                    break;
+                }
+            }
+
+            if (!sink_shares_e_with_source(node_info, linked_source,
+                                           node)) {  /* for all non-shared s-t edges, add edge to sink constraint */
+                int source_edge_id = 0;
+                while (node_info[linked_source].outgoing_edges[source_edge_id] !=
+                       -1) {  /* record edge id and set its value to +1.0 */
+                    connected++;
+                    index[connected] = node_info[linked_source].outgoing_edges[source_edge_id];
+                    value[connected] = 1.0;
+                    source_edge_id++;
+                }
+                int sink_edge_id = 0;
+                while (node_info[node].incoming_edges[sink_edge_id] != -1) {
+                    connected++;
+                    /* record edge id and set its value to -1.0 */
+                    index[connected] = node_info[node].incoming_edges[sink_edge_id];
+                    value[connected] = -1.0;
+                    sink_edge_id++;
+                }
+                glp_set_row_name(lp, 1 + node, "SINK");
+                glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
+                /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
+                glp_set_mat_row(lp, 1 + node, connected, index, value);
+            }
+        } else { /* For all v \ {s,t} */
+            int connected = 0;
+            int edge_id = 0;
+            while (node_info[node].incoming_edges[edge_id] != -1) {  /* record edge id and set its value to +1.0 */
+                connected++;
+                index[connected] = node_info[node].incoming_edges[edge_id];
+                value[connected] = 1.0;
+                edge_id++;
+            }
+            /* Constraint 1 */
+            glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); /* RHS <=1 */
+            glp_set_mat_row(lp, 1 + node, connected, index, value);  /* LHS: sum(incoming edges) */
+
+            /* Constraint 2 */
+            lp_make_row_flow_cons(lp, node_info, node, NODES);
+
+            /* Constraint 3 */
+            constraint_3_row = lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs,
+                                                          constraint_3_row);
         }
-      }
-
-      if (!sink_shares_e_with_source(node_info, linked_source, node))
-      {  /* for all non-shared s-t edges, add edge to sink constraint */
-        int source_edge_id = 0;
-        while(node_info[linked_source].outgoing_edges[source_edge_id] != -1)
-        {  /* record edge id and set its value to +1.0 */
-          connected++;
-          index[connected] = node_info[linked_source].outgoing_edges[source_edge_id];
-          value[connected] = 1.0;
-          source_edge_id++;
-        }
-        int sink_edge_id = 0;
-        while(node_info[node].incoming_edges[sink_edge_id] != -1)
-        {
-          connected++;
-          /* record edge id and set its value to -1.0 */
-          index[connected] = node_info[node].incoming_edges[sink_edge_id];
-          value[connected] = -1.0;
-          sink_edge_id++;
-        }
-        glp_set_row_name(lp, 1 + node, "SINK");
-        glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
-        /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
-        glp_set_mat_row(lp, 1 + node, connected, index, value);
-      }
     }
-    else
-    { /* For all v \ {s,t} */
-      int connected = 0;
-      int edge_id = 0;
-      while(node_info[node].incoming_edges[edge_id] != -1)
-      {  /* record edge id and set its value to +1.0 */
-        connected++;
-        index[connected] = node_info[node].incoming_edges[edge_id];
-        value[connected] = 1.0;
-        edge_id++;
-      }
-      /* Constraint 1 */
-      glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); /* RHS <=1 */
-      glp_set_mat_row(lp, 1 + node, connected, index, value);  /* LHS: sum(incoming edges) */
+}
 
-      /* Constraint 2 */
-      lp_make_row_flow_cons(lp, node_info, node, NODES);
+int computeSolution(void) {
+    const int NODES = numRows * numCols;
+    glp_prob *lp;
+    lp = glp_create_prob();
+    glp_set_prob_name(lp, "Max Flow");
 
-      /* Constraint 3 */
-      constraint_3_row = lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs, constraint_3_row);
-    }
-  }
-  glp_term_out(0); /* disable terminal output from glpk routines */
-  glp_simplex(lp, NULL); /* solve LP via Simplex algorithm */
+    /* map the input graph onto a 1d array */
+    int input_1d[NODES];
+    init_input_1d(input_1d);
 
-  /* DEBUG functions */
-  glp_write_lp(lp, NULL, "ignore_files/output.txt"); // DEBUG: write the LP problem to a file
-  // print_edge_flows(lp, EDGES);  /* print edge flow values */
-  // printf("\nMaximal flow is %f\n\n", glp_get_obj_val(lp));
+    /* count the total number of source & sink nodes */
+    const int COLORS = count_colors(NODES, input_1d);
 
-  /* build the solution graph */
-  build_solution(lp, solution, EDGES);
-  /* house-keeping */
-  glp_delete_prob(lp);
-  /* Let s = source nodes in input, return 1 if max flow = |s|, otherwise 0 */
-  return (glp_get_obj_val(lp) == PAIRS);
+    /* An array of Node structs */
+    struct Node *node_info = (struct Node *) malloc(NODES * sizeof(struct Node));
+    init_node_info(node_info, NODES);
+
+    /* find source-sink pair nodes */
+    const int PAIRS = COLORS / 2;  /* The number of source sink pairs (where equal colors) */
+    struct Color *st_pairs = (struct Color *) malloc(PAIRS * sizeof(struct Color));
+    find_st_pairs(st_pairs, PAIRS, NODES, input_1d, node_info);
+
+    /* make the adjacency matrix */
+    int *adjacency_matrix = (int *) malloc(NODES * NODES * sizeof(int));
+    init_adjacency_matrix(adjacency_matrix, NODES);
+    build_adjacency_matrix(input_1d, NODES, PAIRS, st_pairs, node_info, adjacency_matrix);
+
+    /* set all edge capacities (rows/bounds) */
+    const int EDGES = count_edges(NODES, (int *) adjacency_matrix, PAIRS, node_info);
+    lp_make_bounds(lp, EDGES, adjacency_matrix, st_pairs, PAIRS, NODES, node_info, input_1d);
+
+    /* set all constraints (columns)*/
+    lp_make_constraints(lp, COLORS, NODES, PAIRS, node_info, st_pairs, input_1d);
+
+    glp_term_out(0); /* disable terminal output from glpk routines */
+    glp_simplex(lp, NULL); /* solve LP via Simplex algorithm */
+
+    /* DEBUG functions */
+    glp_write_lp(lp, NULL, "ignore_files/output.txt"); // write the LP problem to a file
+    // print_edge_flows(lp, EDGES);  /* print edge flow values */
+    // printf("\nMaximal flow is %f\n\n", glp_get_obj_val(lp));
+
+    /* build the solution graph */
+    build_solution(lp, solution, EDGES);
+    /* house-keeping */
+    glp_delete_prob(lp);
+    /* Let s = source nodes in input, return 1 if max flow = |s|, otherwise 0 */
+    return (glp_get_obj_val(lp) == PAIRS);
 }
 
 /* YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE! */
 
 /* printPuzzle(int *puzzle) prints either an input or a solution */
-void printPuzzle(int *puzzle)
-{
-  int i, j; /* loop variables to go over rows and columns */
-  for (i = 0; i < numRows; i++)
-  { /* go over rows */
-    for (j = 0; j < numCols; j++)
-    {                                               /* go over columns */
-      fputc('0' + puzzle[i * numCols + j], stdout); /* print the next char */
+void printPuzzle(int *puzzle) {
+    int i, j; /* loop variables to go over rows and columns */
+    for (i = 0; i < numRows; i++) { /* go over rows */
+        for (j = 0; j < numCols; j++) {                                               /* go over columns */
+            fputc('0' + puzzle[i * numCols + j], stdout); /* print the next char */
+        }
+        fprintf(stdout, "\n"); /* end the current line, start new one */
     }
-    fprintf(stdout, "\n"); /* end the current line, start new one */
-  }
 }
 
-int main(int argc, char **argv)
-{
-  int i; /* used to run over the command line parameters */
+int main(int argc, char **argv) {
+    int i; /* used to run over the command line parameters */
 
-  if (argc < 2)
-  { /* no command line parameter given */
-    fprintf(stderr, "Usage: %s [file1] [file2] [file3] [...]\n"
-                    "Where each [file] is the name of a file with a puzzle.\n",
-            argv[0]);
-    exit(EXIT_FAILURE);
-  }
-
-  if (argv[1][0] == '-' && argv[1][1] == 'd' && argv[1][2] == 0)
-  {
-    /* If the first parameter is -d we activate debug mode. */
-    debug = 1;                                        /* switch debug mode on */
-    fprintf(stdout, "DEBUG: Debug mode activated\n"); /* be explicit about it */
-  }
-  else
-  {
-    debug = 0; /* switch debug mode off */
-  }
-
-  for (i = 1 + debug; i < argc; i++)
-  { /* go over remaining command line parameters */
-    if (readInput(argv[i]))
-    { /* try to read file */
-      /* returned with error message */
-      fprintf(stderr, "%s: Cannot read puzzle with filename %s. Skipping it.\n",
-              argv[0], argv[i]);
+    if (argc < 2) { /* no command line parameter given */
+        fprintf(stderr, "Usage: %s [file1] [file2] [file3] [...]\n"
+                        "Where each [file] is the name of a file with a puzzle.\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
     }
-    else
-    { /* input read successfully */
-      fprintf(stdout, "%s: Looking at the following puzzle:\n", argv[i]);
-      printPuzzle(input);
-      if (computeSolution())
-      { /* compute a solution if one exists */
-        fprintf(stdout, "%s: Found the following solution:\n", argv[i]);
-        printPuzzle(solution);
-      }
-      else
-      {
-        fprintf(stdout, "%s: Puzzle has no solution\n", argv[i]);
-      }
-      /* free memory for next input */
-      free(input);
-      free(solution);
+
+    if (argv[1][0] == '-' && argv[1][1] == 'd' && argv[1][2] == 0) {
+        /* If the first parameter is -d we activate debug mode. */
+        debug = 1;                                        /* switch debug mode on */
+        fprintf(stdout, "DEBUG: Debug mode activated\n"); /* be explicit about it */
+    } else {
+        debug = 0; /* switch debug mode off */
     }
-  }
-  return EXIT_SUCCESS;
+
+    for (i = 1 + debug; i < argc; i++) { /* go over remaining command line parameters */
+        if (readInput(argv[i])) { /* try to read file */
+            /* returned with error message */
+            fprintf(stderr, "%s: Cannot read puzzle with filename %s. Skipping it.\n",
+                    argv[0], argv[i]);
+        } else { /* input read successfully */
+            fprintf(stdout, "%s: Looking at the following puzzle:\n", argv[i]);
+            printPuzzle(input);
+            if (computeSolution()) { /* compute a solution if one exists */
+                fprintf(stdout, "%s: Found the following solution:\n", argv[i]);
+                printPuzzle(solution);
+            } else {
+                fprintf(stdout, "%s: Puzzle has no solution\n", argv[i]);
+            }
+            /* free memory for next input */
+            free(input);
+            free(solution);
+        }
+    }
+    return EXIT_SUCCESS;
 }
 
 /* checkFile(FILE *fh) performs basic checks and sets numRows/numCols */
 /* return value 1 indicates an error; otherwise 0 is returned */
-int checkFile(FILE *fh)
-{
-  char c;
-  int rows, cols; /* used to determine number of rows and columns */
-  int read;       /* counts number of digits read in the current row */
-  int firstRow;   /* indicates if we are reading the very first row */
+int checkFile(FILE *fh) {
+    char c;
+    int rows, cols; /* used to determine number of rows and columns */
+    int read;       /* counts number of digits read in the current row */
+    int firstRow;   /* indicates if we are reading the very first row */
 
-  firstRow = 1; /* we start in the first row */
-  rows = cols = read = 0;
-  while (!feof(fh))
-  {
-    c = fgetc(fh); /* read the next char from the file */
-    if (isdigit(c))
-    {         /* normal character read */
-      read++; /* count the digit we just read */
-      if ((!firstRow) && (read > cols))
-      {
-        if (debug)
-        {
-          fprintf(stdout, "DEBUG: Row %d too long (%d, %d).\n", rows + 1, read, cols);
-        }
-        return 1; /* flag error because row is too long */
-      }
-    }
-    else
-    {
-      if ((c == '\n') || (c == (char)-1))
-      { /* end of line read */
-        if (read > 0)
-        {
-          rows++; /* count the completed row if it was not empty */
-        }
-        if (firstRow)
-        {               /* very first row read */
-          cols = read;  /* accept number of characters as number of columns */
-          firstRow = 0; /* not in the first row anymore after this */
-          if (debug)
-          {
-            fprintf(stdout, "DEBUG: %d columns per row expected\n", cols);
-          }
-        }
-        else
-        {
-          if ((read > 0) && (read != cols))
-          { /* rows too short */
-            if (debug)
-            {
-              fprintf(stdout, "DEBUG: Row %d too short.\n", rows + 1);
+    firstRow = 1; /* we start in the first row */
+    rows = cols = read = 0;
+    while (!feof(fh)) {
+        c = fgetc(fh); /* read the next char from the file */
+        if (isdigit(c)) {         /* normal character read */
+            read++; /* count the digit we just read */
+            if ((!firstRow) && (read > cols)) {
+                if (debug) {
+                    fprintf(stdout, "DEBUG: Row %d too long (%d, %d).\n", rows + 1, read, cols);
+                }
+                return 1; /* flag error because row is too long */
             }
-            return 1; /* flag error because row is too short */
-          }
+        } else {
+            if ((c == '\n') || (c == (char) -1)) { /* end of line read */
+                if (read > 0) {
+                    rows++; /* count the completed row if it was not empty */
+                }
+                if (firstRow) {               /* very first row read */
+                    cols = read;  /* accept number of characters as number of columns */
+                    firstRow = 0; /* not in the first row anymore after this */
+                    if (debug) {
+                        fprintf(stdout, "DEBUG: %d columns per row expected\n", cols);
+                    }
+                } else {
+                    if ((read > 0) && (read != cols)) { /* rows too short */
+                        if (debug) {
+                            fprintf(stdout, "DEBUG: Row %d too short.\n", rows + 1);
+                        }
+                        return 1; /* flag error because row is too short */
+                    }
+                }
+                read = 0; /* reset number of characters in current row */
+            } else { /* illegal character found */
+                if (debug) {
+                    fprintf(stdout, "DEBUG: Illegal character %c found.\n", c);
+                }
+                return 1; /* stop reading because of the error */
+            }
         }
-        read = 0; /* reset number of characters in current row */
-      }
-      else
-      { /* illegal character found */
-        if (debug)
-        {
-          fprintf(stdout, "DEBUG: Illegal character %c found.\n", c);
-        }
-        return 1; /* stop reading because of the error */
-      }
     }
-  }
-  if (read > 0)
-  {
-    rows++; /* last row was not ended with newline */
-  }
-  /* use the determined size and prepare for reading */
-  numRows = rows;
-  numCols = cols;
-  rewind(fh); /* reset to the beginning of the file to read the actual input */
-  return 0;   /* signal all went well */
+    if (read > 0) {
+        rows++; /* last row was not ended with newline */
+    }
+    /* use the determined size and prepare for reading */
+    numRows = rows;
+    numCols = cols;
+    rewind(fh); /* reset to the beginning of the file to read the actual input */
+    return 0;   /* signal all went well */
 }
 
 /* readInput(*char filename) reads the input and stores it */
 /* return value 1 indicates an error; otherwise 0 is returned */
-int readInput(char *filename)
-{
-  int i, j;        /* loop variables to go over the columns and rows of the input */
-  int check[10];   /* array to check colours come in pairs */
-  int keepReading; /* used to skip over newline */
-  char c;          /* next char */
-  FILE *fh;
+int readInput(char *filename) {
+    int i, j;        /* loop variables to go over the columns and rows of the input */
+    int check[10];   /* array to check colours come in pairs */
+    int keepReading; /* used to skip over newline */
+    char c;          /* next char */
+    FILE *fh;
 
-  if ((fh = fopen(filename, "rt")) == NULL)
-  {
-    return 1;
-  }
-
-  /* perform basic checks and determine size of puzzle */
-  if (checkFile(fh))
-  { /* there was a problem */
-    fclose(fh);
-    return 1; /* signal error */
-  }
-  if ((input = (int *)malloc(sizeof(int) * numRows * numCols)) == NULL)
-  {
-    if (debug)
-    {
-      fprintf(stdout, "DEBUG: Unable to allocate %ld bytes of memory.\n",
-              sizeof(int) * numRows * numCols);
+    if ((fh = fopen(filename, "rt")) == NULL) {
+        return 1;
     }
-    fclose(fh);
-    return 1;
-  }
-  if ((solution = (int *)malloc(sizeof(int) * numRows * numCols)) == NULL)
-  {
-    if (debug)
-    {
-      fprintf(stdout, "DEBUG: Unable to allocate %ld bytes of memory.\n",
-              sizeof(int) * numRows * numCols);
-    }
-    free(input);
-    fclose(fh);
-    return 1;
-  }
-  memset(solution, 0, sizeof(int) * numRows * numCols); /*initialise solution empty*/
-  if (debug)
-  {
-    fprintf(stdout, "DEBUG: Will read %dx%d sized puzzle\n", numRows, numCols);
-  }
-  /* prepare to count different digits */
-  for (i = 0; i < 10; i++)
-  {
-    check[i] = 0;
-  }
-  /* Size is given in numRows, numCols; now we read */
 
-  for (i = 0; i < numRows; i++)
-  { /* go over rows */
-    for (j = 0; j < numCols; j++)
-    { /* go over columns */
-      do
-      {
-        keepReading = 1; /* prepare to skip over newline */
-        c = fgetc(fh);   /* get next digit */
-        if (isdigit(c))
-        {                                          /* store and count digit */
-          input[i * numCols + j] = (int)(c - '0'); /* convert char to int */
-          check[input[i * numCols + j]]++;
-          keepReading = 0; /* mark digit as read */
+    /* perform basic checks and determine size of puzzle */
+    if (checkFile(fh)) { /* there was a problem */
+        fclose(fh);
+        return 1; /* signal error */
+    }
+    if ((input = (int *) malloc(sizeof(int) * numRows * numCols)) == NULL) {
+        if (debug) {
+            fprintf(stdout, "DEBUG: Unable to allocate %ld bytes of memory.\n",
+                    sizeof(int) * numRows * numCols);
         }
-      } while (keepReading);
+        fclose(fh);
+        return 1;
     }
-  }
-  for (i = 1; i < 10; i++)
-  {
-    if ((check[i] != 0) && (check[i] != 2))
-    {
-      if (debug)
-      {
-        fprintf(stdout, "DEBUG: Colour %d appears %d times.\n", i, check[i]);
-        printPuzzle(input);
-      }
-      free(input);
-      free(solution);
-      fclose(fh);
-      return 1;
+    if ((solution = (int *) malloc(sizeof(int) * numRows * numCols)) == NULL) {
+        if (debug) {
+            fprintf(stdout, "DEBUG: Unable to allocate %ld bytes of memory.\n",
+                    sizeof(int) * numRows * numCols);
+        }
+        free(input);
+        fclose(fh);
+        return 1;
     }
-  }
+    memset(solution, 0, sizeof(int) * numRows * numCols); /*initialise solution empty*/
+    if (debug) {
+        fprintf(stdout, "DEBUG: Will read %dx%d sized puzzle\n", numRows, numCols);
+    }
+    /* prepare to count different digits */
+    for (i = 0; i < 10; i++) {
+        check[i] = 0;
+    }
+    /* Size is given in numRows, numCols; now we read */
 
-  fclose(fh); /* close file after reading the input */
-  return 0;   /* signal all went well */
+    for (i = 0; i < numRows; i++) { /* go over rows */
+        for (j = 0; j < numCols; j++) { /* go over columns */
+            do {
+                keepReading = 1; /* prepare to skip over newline */
+                c = fgetc(fh);   /* get next digit */
+                if (isdigit(c)) {                                          /* store and count digit */
+                    input[i * numCols + j] = (int) (c - '0'); /* convert char to int */
+                    check[input[i * numCols + j]]++;
+                    keepReading = 0; /* mark digit as read */
+                }
+            } while (keepReading);
+        }
+    }
+    for (i = 1; i < 10; i++) {
+        if ((check[i] != 0) && (check[i] != 2)) {
+            if (debug) {
+                fprintf(stdout, "DEBUG: Colour %d appears %d times.\n", i, check[i]);
+                printPuzzle(input);
+            }
+            free(input);
+            free(solution);
+            fclose(fh);
+            return 1;
+        }
+    }
+
+    fclose(fh); /* close file after reading the input */
+    return 0;   /* signal all went well */
 }

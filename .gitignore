@@ -1,2 +1,4 @@
 ignore_files/
 puzzleSolver_c
+.idea/
+cmake-build-debug/
