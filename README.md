@@ -1,4 +1,10 @@
-"We are concerned with a small puzzle game for a single player, played on a rectangular grid. On the grid are pairs of squares marked with equal colours (each colour appearing exactly twice). You are asked to finda connection for all pairs simultaneously so that the path between each pair makes only use of horizontal and vertical steps (not diagonal steps) and each field of the grid is used by at most one connection or mark. [...] Note that possible solutions need not be unique [...] Not all inputs are necessarily solvable"[1]
+<h1>CS31920 Advanced Algorithms Assignment</h1>
+
+<h2>Problem Description</h2>
+
+<p>"We are concerned with a small puzzle game for a single player, played on a rectangular grid. On the grid are pairs of squares marked with equal colours (each colour appearing exactly twice). You are asked to finda connection for all pairs simultaneously so that the path between each pair makes only use of horizontal and vertical steps (not diagonal steps) and each field of the grid is used by at most one connection or mark. [...] Note that possible solutions need not be unique [...] Not all inputs are necessarily solvable"[1]<p>
+
+<h2>Implementation</h2>
 
 This program reduces the puzzle into a maximum flow problem, before solving it via linear programming using the C GNU Linear Programming Kit (GLPK).
 
@@ -28,3 +34,11 @@ BOUNDS: (GLPK: Row [auxiliary variables])
   - 0 <= e <= 1 for e in E
  
 [1]: Section 3.1 (Problem Description) of assignment brief
+
+<h2>Compiling and Running</h2>
+
+- Ensure GLPK is installed: https://www.gnu.org/software/glpk/
+
+- ```gcc puzzleSolver.c -lglpk -o puzzleSolver_c```
+
+- ```./puzzleSolver_c <input file> <-d (optional debug)>```
