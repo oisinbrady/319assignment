@@ -1,3 +1,5 @@
+"We are concerned with a small puzzle game for a single player, played on a rectangular grid. On the grid are pairs of squares marked with equal colours (each colour appearing exactly twice). You are asked to finda connection for all pairs simultaneously so that the path between each pair makes only use of horizontal and vertical steps (not diagonal steps) and each field of the grid is used by at most one connection or mark. [...] Note that possible solutions need not be unique [...] Not all inputs are necessarily solvable"[1]
+
 This program reduces the puzzle into a maximum flow problem, before solving it via linear programming using the C GNU Linear Programming Kit (GLPK).
 
 For graph, G(V,E,c):
@@ -24,3 +26,5 @@ S.T: (GLPK: Columns [structural variables])
 
 BOUNDS: (GLPK: Row [auxiliary variables])
   - 0 <= e <= 1 for e in E
+ 
+[1]: Section 3.1 (Problem Description) of assignment brief
