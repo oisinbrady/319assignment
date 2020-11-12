@@ -82,9 +82,9 @@ struct Node {
     int *outgoing_edges;
 };
 
-void build_solution(glp_prob *lp, int *solution, const int EDGES);
+void build_solution(glp_prob *lp, const int EDGES, int *solution);
 
-void build_solution(glp_prob *lp, int *solution, const int EDGES) {
+void build_solution(glp_prob *lp, const int EDGES, int *solution) {
     for (int i = 1; i <= EDGES; i++) {
         const char *edge_name = glp_get_col_name(lp, i);
         if (glp_get_col_prim(lp, i) > 0.0) {
@@ -96,10 +96,9 @@ void build_solution(glp_prob *lp, int *solution, const int EDGES) {
         }
     }
 }
+void find_st_pairs(const int NODES, const int PAIRS, struct Color *st_pairs, struct Node *node_info, int *input_1d);
 
-void find_st_pairs(struct Color *st_pairs, int PAIRS, int NODES, int *input_1d, struct Node *node_info);
-
-void find_st_pairs(struct Color *st_pairs, int PAIRS, int NODES, int *input_1d, struct Node *node_info) {
+void find_st_pairs(const int NODES, const int PAIRS, struct Color *st_pairs, struct Node *node_info, int *input_1d) {
     for (int i = 0, pair_counter = 0; i < NODES; i++) {
         for (int j = i + 1; j < NODES; j++) {
             // if we have seen this color before
@@ -168,9 +167,9 @@ void lp_make_col(glp_prob *lp, int col_id, int node_u, int node_v, int color) {
     glp_set_col_name(lp, col_id, edge_name);
 }
 
-int count_edges(const int NODES, int *adjacency_matrix, const int PAIRS, struct Node *node_info);
+int count_edges(const int NODES, const int PAIRS, int *adjacency_matrix , struct Node *node_info);
 
-int count_edges(const int NODES, int *adjacency_matrix, const int PAIRS, struct Node *node_info) {
+int count_edges(const int NODES, const int PAIRS, int *adjacency_matrix , struct Node *node_info) {
     /* Traverse the adjacency matrix and count the number of edges */
     int edges = 0;
     for (int i = 0; i < NODES; i++) {
@@ -334,9 +333,9 @@ int count_colors(const int NODES, int input_1d[]) {
     return color;
 }
 
-void init_node_info(struct Node *node_info, const int NODES);
+void init_node_info(const int NODES, struct Node *node_info);
 
-void init_node_info(struct Node *node_info, const int NODES) {
+void init_node_info(const int NODES, struct Node *node_info) {
     /* Initialise Node information */
     for (int node = 0; node < NODES; node++) {
         struct Node n;
@@ -446,11 +445,11 @@ build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct 
     }
 }
 
-void lp_make_bounds(glp_prob *lp, const int EDGES, int *adjacency_matrix, struct Color *st_pairs, const int PAIRS,
-                    const int NODES, struct Node *node_info, int input_1d[]);
+void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PAIRS, struct Color *st_pairs, int *adjacency_matrix,
+                     struct Node *node_info, int input_1d[]);
 
-void lp_make_bounds(glp_prob *lp, const int EDGES, int *adjacency_matrix, struct Color *st_pairs, const int PAIRS,
-                    const int NODES, struct Node *node_info, int input_1d[]) {
+void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PAIRS, struct Color *st_pairs, int *adjacency_matrix,
+                     struct Node *node_info, int input_1d[]) {
     glp_add_cols(lp, EDGES);
     int col_id = 0;
     for (int node_u = 0; node_u < NODES; node_u++) {
@@ -495,14 +494,13 @@ void init_input_1d(int input_1d[]) {
         }
     }
 }
+void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct Color *st_pairs,
+                          struct Node *node_info, int input_1d[]);
 
-void lp_make_constraints(glp_prob *lp, const int COLORS, const int NODES, const int PAIRS, struct Node *node_info,
-                         struct Color *st_pairs, int input_1d[]);
-
-void lp_make_constraints(glp_prob *lp, const int COLORS, const int NODES, const int PAIRS, struct Node *node_info,
-                         struct Color *st_pairs, int input_1d[]) {
+void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct Color *st_pairs,
+                          struct Node *node_info, int input_1d[]) {
     int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
-    const int CONSTRAINTS = (NODES * PAIRS) + (NODES * COLORS);
+    const int CONSTRAINTS = (NODES * PAIRS) + (NODES * (PAIRS*2));
     glp_add_rows(lp, CONSTRAINTS);
     glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
     for (int node = 0; node < NODES; node++) {
@@ -595,12 +593,12 @@ int computeSolution(void) {
 
     /* An array of Node structs */
     struct Node *node_info = (struct Node *) malloc(NODES * sizeof(struct Node));
-    init_node_info(node_info, NODES);
+    init_node_info(NODES, node_info);
 
     /* find source-sink pair nodes */
     const int PAIRS = COLORS / 2;  /* The number of source sink pairs (where equal colors) */
     struct Color *st_pairs = (struct Color *) malloc(PAIRS * sizeof(struct Color));
-    find_st_pairs(st_pairs, PAIRS, NODES, input_1d, node_info);
+    find_st_pairs(NODES, PAIRS, st_pairs, node_info, input_1d);
 
     /* make the adjacency matrix */
     int *adjacency_matrix = (int *) malloc(NODES * NODES * sizeof(int));
@@ -608,11 +606,11 @@ int computeSolution(void) {
     build_adjacency_matrix(input_1d, NODES, PAIRS, st_pairs, node_info, adjacency_matrix);
 
     /* set all edge capacities (rows/bounds) */
-    const int EDGES = count_edges(NODES, (int *) adjacency_matrix, PAIRS, node_info);
-    lp_make_bounds(lp, EDGES, adjacency_matrix, st_pairs, PAIRS, NODES, node_info, input_1d);
+    const int EDGES = count_edges(NODES, PAIRS, adjacency_matrix, node_info);
+    lp_make_bounds(lp, NODES, EDGES, PAIRS, st_pairs, adjacency_matrix, node_info, input_1d);
 
     /* set all constraints (columns)*/
-    lp_make_constraints(lp, COLORS, NODES, PAIRS, node_info, st_pairs, input_1d);
+    lp_make_constraints(lp, NODES, PAIRS, st_pairs, node_info, input_1d);
 
     glp_term_out(0); /* disable terminal output from glpk routines */
     glp_simplex(lp, NULL); /* solve LP via Simplex algorithm */
@@ -623,7 +621,7 @@ int computeSolution(void) {
     // printf("\nMaximal flow is %f\n\n", glp_get_obj_val(lp));
 
     /* build the solution graph */
-    build_solution(lp, solution, EDGES);
+    build_solution(lp, EDGES, solution);
     /* house-keeping */
     glp_delete_prob(lp);
     /* Let s = source nodes in input, return 1 if max flow = |s|, otherwise 0 */
