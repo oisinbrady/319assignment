@@ -32,8 +32,6 @@ S.T: (GLPK: Columns [structural variables])
 
 BOUNDS: (GLPK: Row [auxiliary variables])
   - 0 <= e <= 1 for e in E
- 
-[1]: Section 3.1 (Problem Description) of assignment brief
 
 <h2>Compiling and Running</h2>
 
@@ -42,3 +40,5 @@ BOUNDS: (GLPK: Row [auxiliary variables])
 - ```gcc puzzleSolver.c -lglpk -o puzzleSolver_c```
 
 - ```./puzzleSolver_c <input file> <-d (optional debug)>```
+
+<b>[1]: Section 3.1 (Problem Description) of assignment brief<b>
