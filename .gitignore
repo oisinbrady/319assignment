@@ -3,3 +3,4 @@ puzzleSolver_c
 .idea/
 cmake-build-debug/
 CMakeLists.txt
+run_tests.sh
