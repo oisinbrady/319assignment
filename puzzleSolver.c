@@ -247,11 +247,11 @@ void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int N
 }
 
 int
-lp_make_row_color_distinct(glp_prob *lp, int NODES, int PAIRS, struct Node *node_info, int node, struct Color *st_pairs,
+lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int NODES, int PAIRS, struct Color *st_pairs,
                            int row);
 
 int
-lp_make_row_color_distinct(glp_prob *lp, int NODES, int PAIRS, struct Node *node_info, int node, struct Color *st_pairs,
+lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int NODES, int PAIRS, struct Color *st_pairs,
                            int row) {
     // get all the edges for the node in each color
     // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
@@ -368,15 +368,6 @@ build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct 
 void
 build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct Color *st_pairs, struct Node *node_info,
                        int *adjacency_matrix) {
-    /*
-      Map all possible edges between adjacent nodes,
-      This does not include diagonal nodes.
-      An adjacent node to node n, is any node directly
-      above, below, left of, right of n.
-
-      Value 1 in the adjaceny matrix indicates their
-      is an edge between two nodes, otherwise 0.
-    */
     const int MAX_ADJACENT = 4;
     for (int i = 0; i < NODES; i++) {
         if (input_1d[i] != 0) { // if we have a source or sink node
@@ -435,17 +426,17 @@ build_adjacency_matrix(int input_1d[], const int NODES, const int PAIRS, struct 
                     }
                 }
             }
-        } else { /* for all other non-source/sink edges */
+        } else { // for all other non-source/sink edges
             int an[4] = {-1, -1, -1, -1};
             int *adjacent_nodes = determine_adjacent_nodes(i, an);
             for (int ad_node = 0; ad_node < 4; ad_node++) {
-                /* if the node has an adjacent node in this direction */
+                // if the node has an adjacent node in this direction
                 if (adjacent_nodes[ad_node] != -1) {
-                    /* if the adjacent node is not a source/sink */
+                    // if the adjacent node is not a source/sink
                     if (input_1d[adjacent_nodes[ad_node]] == 0) {
-                        /* make edges for all e in E not {s,t} */
+                        // make edges for all e in E not {s,t}
                         *(adjacency_matrix + i * NODES + adjacent_nodes[ad_node]) = 1;
-                        /* a path in the converse direction is also possible */
+                        // a path in the converse direction is also possible
                         *(adjacency_matrix + adjacent_nodes[ad_node] * NODES + i) = 1;
                     }
                 }
@@ -459,10 +450,6 @@ void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PA
 
 void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PAIRS, struct Color *st_pairs, int *adjacency_matrix,
                      struct Node *node_info, int input_1d[]) {
-    /*
-    Construct bounds for every edge in the graph, such that, for each each, e:
-    0 <= e <= 1
-    */
     glp_add_cols(lp, EDGES);
     int col_id = 0;
     for (int node_u = 0; node_u < NODES; node_u++) {
@@ -512,13 +499,7 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
 
 void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct Color *st_pairs,
                           struct Node *node_info, int input_1d[]) {
-    /*
-    Create a constraint for each node which involves the relation between its edges.
-    The particular constraint(s) that are constructed depend on whether the node is
-    a source, a sink, or neither.
-    */
-    int next_row = 1; /* the row constraint */
-
+    int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
     const int CONSTRAINTS = (NODES * PAIRS) + (NODES * (PAIRS*2));
     glp_add_rows(lp, CONSTRAINTS);
     glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
@@ -538,10 +519,9 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                 edge_id++;
             }
             /* set constraint for source: sum(outgoing edges) <= 1 */
-            glp_set_row_name(lp, next_row, "SOURCE");
-            glp_set_row_bnds(lp, next_row, GLP_UP, 0.0, 1.0);
-            glp_set_mat_row(lp, next_row, connected, index, value);
-            next_row++;
+            glp_set_row_name(lp, 1 + node, "SOURCE");
+            glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0);
+            glp_set_mat_row(lp, 1 + node, connected, index, value);
         } else if (node_info[node].sink) {
             int connected = 0; /* number of edges in the constraint */
             int linked_source;
@@ -570,11 +550,10 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                     value[connected] = -1.0;
                     sink_edge_id++;
                 }
-                glp_set_row_name(lp, next_row, "SINK");
-                glp_set_row_bnds(lp, next_row, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
+                glp_set_row_name(lp, 1 + node, "SINK");
+                glp_set_row_bnds(lp, 1 + node, GLP_FX, 0.0, 0.0); /* RHS: = 0 */
                 /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
-                glp_set_mat_row(lp, next_row, connected, index, value);
-                next_row++;
+                glp_set_mat_row(lp, 1 + node, connected, index, value);
             }
         } else { /* For all v \ {s,t} */
             int connected = 0;
@@ -586,32 +565,20 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                 edge_id++;
             }
             /* Constraint 1 */
-            glp_set_row_bnds(lp, next_row, GLP_UP, 0.0, 1.0); /* RHS <=1 */
-            glp_set_mat_row(lp, next_row, connected, index, value);  /* LHS: sum(incoming edges) */
-            next_row++;
+            glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); /* RHS <=1 */
+            glp_set_mat_row(lp, 1 + node, connected, index, value);  /* LHS: sum(incoming edges) */
 
             /* Constraint 2 */
             lp_make_row_flow_cons(lp, node_info, node, NODES);
-            next_row++;
 
-            /* Constraint 3 - creates (potentially) multiple row constraints for each node */
-            next_row = lp_make_row_color_distinct(lp, NODES, PAIRS, node_info, node, st_pairs, next_row);
+            /* Constraint 3 */
+            constraint_3_row = lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs,
+                                                          constraint_3_row);
         }
     }
 }
 
 int computeSolution(void) {
-    /*
-      Create and solve the puzzle modelled as a max flow problem using a linear program
-      In summary this function:
-      - Creates the lp program as a maximization problem
-      - Sets objective function
-      - Sets bounds
-      - Set constaints
-      - Solves LP via simplex algorithm
-    */
-
-    /* the total number of nodes in the input graph */
     const int NODES = numRows * numCols;
     glp_prob *lp;
     lp = glp_create_prob();
@@ -624,12 +591,7 @@ int computeSolution(void) {
     /* count the total number of source & sink nodes */
     const int COLORS = count_colors(NODES, input_1d);
 
-    /*
-      An array of Node structs.
-      Each Node holds important info for later processing.
-      E.g., Node.incoming_edges[], node.outgoing_edges[],
-        contain the glpk column ids for the nodes associated edges
-    */
+    /* An array of Node structs */
     struct Node *node_info = (struct Node *) malloc(NODES * sizeof(struct Node));
     init_node_info(NODES, node_info);
 
@@ -643,14 +605,11 @@ int computeSolution(void) {
     init_adjacency_matrix(adjacency_matrix, NODES);
     build_adjacency_matrix(input_1d, NODES, PAIRS, st_pairs, node_info, adjacency_matrix);
 
-    /*
-      Set all edge capacities (rows/bounds).
-      Each edge is a (non-diagonal) path between adjacent nodes
-    */
+    /* set all edge capacities (rows/bounds) */
     const int EDGES = count_edges(NODES, PAIRS, adjacency_matrix, node_info);
     lp_make_bounds(lp, NODES, EDGES, PAIRS, st_pairs, adjacency_matrix, node_info, input_1d);
 
-    /* set all constraints (columns) */
+    /* set all constraints (columns)*/
     lp_make_constraints(lp, NODES, PAIRS, st_pairs, node_info, input_1d);
 
     glp_term_out(0); /* disable terminal output from glpk routines */
@@ -665,7 +624,7 @@ int computeSolution(void) {
     build_solution(lp, EDGES, solution);
     /* house-keeping */
     glp_delete_prob(lp);
-    /* Let s = #source nodes in input, return 1 if max flow = s, otherwise 0 */
+    /* Let s = source nodes in input, return 1 if max flow = |s|, otherwise 0 */
     return (glp_get_obj_val(lp) == PAIRS);
 }
 
