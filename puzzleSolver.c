@@ -63,11 +63,11 @@ int *determine_adjacent_nodes(int node, int *array) {
 }
 
 struct Color {
-    // the respective source and sink locations of each color
+    /* Information for a Color - (i.e., a source/sink pair of nodes) */
     int color;
     int source_location;
     int sink_location;
-    /* edge numbers of adjacent edges */
+    /* the node that the source/sink node connects to to form an edge */
     int source_edges[4];
     int sink_edges[4];
 };
@@ -115,8 +115,6 @@ void find_st_pairs(const int NODES, const int PAIRS, struct Color *st_pairs, str
         }
     }
     // initialise all source's outbound edges
-    // TODO for some reason this does not work if we are inside the loop above
-
     for (int p = 0; p < PAIRS; p++) {
         for (int i = 0; i < 4; i++) {
             st_pairs[p].source_edges[i] = -1;
@@ -214,7 +212,7 @@ void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int N
 
 void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int NODES) {
     /* Create the flow conservation constraint (3) */
-    int index[NODES * NODES];  // TODO find better array sizes
+    int index[NODES * NODES];
     double value[NODES * NODES];
     int row_id = 1 + node + NODES;
     int connected = 0;
@@ -251,14 +249,13 @@ lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int N
     // get all the edges for the node in each color
     // each time, add a constraint: incoming - outgoing = 0 (for only the current color edges)
     for (int p = 0; p < PAIRS; p++) {
-        int index[NODES * NODES];  // TODO find better array sizes
+        int index[NODES * NODES];
         double value[NODES * NODES];
         int connected = 0;
         int i_edge_id = 0;  // incoming edge id
         // get the incoming edges of the current color
         while (node_info[node].incoming_edges[i_edge_id] != -1) {
             const char *name = glp_get_col_name(lp, node_info[node].incoming_edges[i_edge_id]);
-            // TODO! This wont work if the color is greater than 2 digits
             int edge_color = (int) name[strlen(name) - 2] - 48;
             if (edge_color == st_pairs[p].color) {
                 connected++;
@@ -294,9 +291,7 @@ lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int N
 bool sink_shares_e_with_source(struct Node *node_info, int linked_source, int sink);
 
 bool sink_shares_e_with_source(struct Node *node_info, int linked_source, int sink) {
-    // TODO source_e < 4 * PAIRS ?????
-    for (int source_e = 0; source_e < numCols *
-                                      numRows; source_e++)  // TODO change range along with node_info.out/inc edge malloc init (~ln 407)
+    for (int source_e = 0; source_e < numCols * numRows; source_e++)
     {
         if (node_info[linked_source].outgoing_edges[source_e] != -1) {
             for (int sink_e = 0; sink_e < numCols * numRows; sink_e++) {
@@ -444,11 +439,11 @@ void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PA
 
 void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PAIRS, struct Color *st_pairs, int *adjacency_matrix,
                      struct Node *node_info, int input_1d[]) {
-  /*
-  Create a bound for all edges in the graph.
-  Additionally, store the node's incoming/outgoing edges for later use in determining
-  what constraints are applied for each node's edges.
-  */
+    /*
+    Create a bound for all edges in the graph.
+    Additionally, store the node's incoming/outgoing edges for later use in determining
+    what constraints are applied for each node's edges.
+    */
     glp_add_cols(lp, EDGES);
     int col_id = 0;
     for (int node_u = 0; node_u < NODES; node_u++) {
