@@ -3,8 +3,6 @@
 #include <ctype.h>  /* needed for isdigit() */
 #include <string.h> /* needed for memset() */
 #include <glpk.h>   /* the linear programming toolkit */
-#include <stddef.h>
-#include <math.h>
 #include <stdbool.h>
 
 /* global variables -- YOU SHOULD NOT CHANGE THIS! */
@@ -87,7 +85,7 @@ void build_solution(glp_prob *lp, const int EDGES, int *solution);
 void build_solution(glp_prob *lp, const int EDGES, int *solution) {
     for (int i = 1; i <= EDGES; i++) {
         const char *edge_name = glp_get_col_name(lp, i);
-        if (glp_get_col_prim(lp, i) > 0.0) {
+        if (glp_get_col_prim(lp, i) == 1.0) {
             int v1, v2, color;
             char regex[] = "%*[^0123456789]%d%*[^0123456789]%d%*[^0123456789]%d";
             sscanf(edge_name, regex, &v1, &v2, &color);
@@ -215,13 +213,11 @@ void node_info_outgoing_edge(struct Node *node_info, int node_id, int col_id, in
 void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int NODES);
 
 void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int NODES) {
-    /* Create the flow conservation constraint */
+    /* Create the flow conservation constraint (3) */
     int index[NODES * NODES];  // TODO find better array sizes
     double value[NODES * NODES];
     int row_id = 1 + node + NODES;
-
     int connected = 0;
-
     int o_edge_id = 0; // outgoing edge id
     while (node_info[node].outgoing_edges[o_edge_id] != -1) {  /* record edge id and set its value to +1.0 */
         // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
@@ -239,10 +235,9 @@ void lp_make_row_flow_cons(glp_prob *lp, struct Node *node_info, int node, int N
         i_edge_id++;
     }
 
-
     glp_set_row_bnds(lp, row_id, GLP_FX, 0.0, 0.0); /* RHS = 0 */
     glp_set_row_name(lp, row_id, "F.C.L");  // "flow conservation constraint"
-    /* LHS: sum(incoming edges) 1 */
+    /* LHS: sum(incoming edges) - sum(outgoing edges) */
     glp_set_mat_row(lp, row_id, connected, index, value);
 }
 
@@ -278,7 +273,6 @@ lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int N
         while (node_info[node].outgoing_edges[o_edge_id] != -1) {
             // printf("%i\n",node_info[node].outgoing_edges[o_edge_id] );
             const char *name = glp_get_col_name(lp, node_info[node].outgoing_edges[o_edge_id]);
-            // TODO! This wont work if the color is greater than 2 digits
             int edge_color = (int) name[strlen(name) - 2] - 48;
             if (edge_color == st_pairs[p].color) {
                 connected++;
@@ -290,7 +284,7 @@ lp_make_row_color_distinct(glp_prob *lp, struct Node *node_info, int node, int N
         // set RHS
         glp_set_row_bnds(lp, row, GLP_FX, 0.0, 0.0); /* RHS = 0 */
         glp_set_row_name(lp, row, "C.D.F");  // "Color distinct flow"
-        /* LHS: sum(incoming edges) 1 */
+        /* LHS: sum(incoming edges) - sum(outgoing edges) = 0, where all edges of the same color */
         glp_set_mat_row(lp, row, connected, index, value);
         row++;
     }
@@ -450,6 +444,11 @@ void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PA
 
 void lp_make_bounds(glp_prob *lp, const int NODES, const int EDGES, const int PAIRS, struct Color *st_pairs, int *adjacency_matrix,
                      struct Node *node_info, int input_1d[]) {
+  /*
+  Create a bound for all edges in the graph.
+  Additionally, store the node's incoming/outgoing edges for later use in determining
+  what constraints are applied for each node's edges.
+  */
     glp_add_cols(lp, EDGES);
     int col_id = 0;
     for (int node_u = 0; node_u < NODES; node_u++) {
@@ -499,16 +498,17 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
 
 void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct Color *st_pairs,
                           struct Node *node_info, int input_1d[]) {
-    int constraint_3_row = 1 + NODES + NODES;  // the third batch of constraints for each node
-    const int CONSTRAINTS = (NODES * PAIRS) + (NODES * (PAIRS*2));
+    int constraint_3_row = 1 + NODES + NODES;  // row constraint ids for the third batch of constraints assigned to each non-s/t node
+    const int CONSTRAINTS = (NODES * PAIRS) + (NODES * (PAIRS*2)); // The total number of constraints
     glp_add_rows(lp, CONSTRAINTS);
-    glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
     for (int node = 0; node < NODES; node++) {
         int index[NODES];    /* indices to define constraint coefficients */
         double value[NODES]; /* values to define constraint coefficients */
+
         if (node_info[node].source) {
             int edge_id = 0;
             int connected = 0;
+            /* Add the source node's outgoing edges to the objective function */
             while (node_info[node].outgoing_edges[edge_id] != -1) {
                 /* set objective function to max flow of source edges */
                 connected++;  /* count number of connected edges */
@@ -519,10 +519,12 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                 edge_id++;
             }
             /* set constraint for source: sum(outgoing edges) <= 1 */
+            /* Write-up LP constraint (4) */
             glp_set_row_name(lp, 1 + node, "SOURCE");
             glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0);
             glp_set_mat_row(lp, 1 + node, connected, index, value);
-        } else if (node_info[node].sink) {
+        }
+        else if (node_info[node].sink) {
             int connected = 0; /* number of edges in the constraint */
             int linked_source;
             for (int p = 0; p < PAIRS; p++) {  /* find the sink's source */
@@ -532,11 +534,11 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                 }
             }
 
-            if (!sink_shares_e_with_source(node_info, linked_source,
-                                           node)) {  /* for all non-shared s-t edges, add edge to sink constraint */
+            if (!sink_shares_e_with_source(node_info, linked_source, node)) {
+            /* for all non-shared s-t edges, add edge to sink constraint */
                 int source_edge_id = 0;
-                while (node_info[linked_source].outgoing_edges[source_edge_id] !=
-                       -1) {  /* record edge id and set its value to +1.0 */
+                while (node_info[linked_source].outgoing_edges[source_edge_id] !=-1) {
+                    /* record edge id and set its value to +1.0 */
                     connected++;
                     index[connected] = node_info[linked_source].outgoing_edges[source_edge_id];
                     value[connected] = 1.0;
@@ -555,23 +557,25 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
                 /* LHS: sum(sink's incoming_edges) - sum(source's outgoing edges) 1 */
                 glp_set_mat_row(lp, 1 + node, connected, index, value);
             }
-        } else { /* For all v \ {s,t} */
+        }
+        else { /* For all v \ {s,t} */
             int connected = 0;
             int edge_id = 0;
-            while (node_info[node].incoming_edges[edge_id] != -1) {  /* record edge id and set its value to +1.0 */
+            while (node_info[node].incoming_edges[edge_id] != -1) {
+                /* record edge id and set its value to +1.0 */
                 connected++;
                 index[connected] = node_info[node].incoming_edges[edge_id];
                 value[connected] = 1.0;
                 edge_id++;
             }
-            /* Constraint 1 */
+            /* Write-up LP constraint (4) */
             glp_set_row_bnds(lp, 1 + node, GLP_UP, 0.0, 1.0); /* RHS <=1 */
             glp_set_mat_row(lp, 1 + node, connected, index, value);  /* LHS: sum(incoming edges) */
 
-            /* Constraint 2 */
+            /* Write-up LP constraint (3) */
             lp_make_row_flow_cons(lp, node_info, node, NODES);
 
-            /* Constraint 3 */
+            /* Write-up LP constraint (5)  */
             constraint_3_row = lp_make_row_color_distinct(lp, node_info, node, NODES, PAIRS, st_pairs,
                                                           constraint_3_row);
         }
@@ -579,12 +583,13 @@ void lp_make_constraints(glp_prob *lp, const int NODES, const int PAIRS, struct 
 }
 
 int computeSolution(void) {
-    const int NODES = numRows * numCols;
+    const int NODES = numRows * numCols; /* total nodes in puzzle */
     glp_prob *lp;
     lp = glp_create_prob();
-    glp_set_prob_name(lp, "Max Flow");
+    glp_set_obj_dir(lp, GLP_MAX); /* set maximisation as objective */
+    //glp_set_prob_name(lp, "Max Flow"); /* allows for a title; useful when writing the LP to a file */
 
-    /* map the input graph onto a 1d array */
+    /* map the input graph onto a 1d array - easier for me to understand when referencing nodes */
     int input_1d[NODES];
     init_input_1d(input_1d);
 
@@ -595,7 +600,10 @@ int computeSolution(void) {
     struct Node *node_info = (struct Node *) malloc(NODES * sizeof(struct Node));
     init_node_info(NODES, node_info);
 
-    /* find source-sink pair nodes */
+    /*
+      Find source-sink pair nodes.
+      Necessary for row/col creation, as these nodes will have different contraints to non-st nodes
+    */
     const int PAIRS = COLORS / 2;  /* The number of source sink pairs (where equal colors) */
     struct Color *st_pairs = (struct Color *) malloc(PAIRS * sizeof(struct Color));
     find_st_pairs(NODES, PAIRS, st_pairs, node_info, input_1d);
@@ -616,16 +624,23 @@ int computeSolution(void) {
     glp_simplex(lp, NULL); /* solve LP via Simplex algorithm */
 
     /* DEBUG functions */
-    glp_write_lp(lp, NULL, "ignore_files/output.txt"); // write the LP problem to a file
+    // glp_write_lp(lp, NULL, "ignore_files/output.txt"); // write the LP problem to a file
     // print_edge_flows(lp, EDGES);  /* print edge flow values */
     // printf("\nMaximal flow is %f\n\n", glp_get_obj_val(lp));
 
-    /* build the solution graph */
-    build_solution(lp, EDGES, solution);
-    /* house-keeping */
-    glp_delete_prob(lp);
-    /* Let s = source nodes in input, return 1 if max flow = |s|, otherwise 0 */
-    return (glp_get_obj_val(lp) == PAIRS);
+    /* Let s = all source nodes in input, return 1 if max flow = |s|, otherwise 0 */
+    if (glp_get_obj_val(lp) == PAIRS)
+    {
+      /* build the solution graph */
+      build_solution(lp, EDGES, solution);
+      glp_delete_prob(lp); /* house-keeping */
+      return 1;
+    }
+    else
+    {
+      glp_delete_prob(lp);
+      return 0;
+    }
 }
 
 /* YOU SHOULD NOT CHANGE ANYTHING BELOW THIS LINE! */
